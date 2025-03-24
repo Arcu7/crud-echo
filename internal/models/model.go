@@ -6,7 +6,7 @@ import (
 )
 
 type Books struct {
-	ID          int          `json:"id" gorm:"primaryKey;autoIncrement;not null"`
+	ID          int          `json:"id" gorm:"primaryKey;autoIncrement;not null" validate:"required_without_all=Title Description Qty"`
 	Title       string       `json:"title" gorm:"type:varchar(50);not null" validate:"required,min=3,max=50"`
 	Description string       `json:"description" gorm:"type:varchar(255);not null" validate:"required,min=3,max=255"`
 	Qty         int          `json:"qty" gorm:"not null" validate:"required,gte=0,lte=100"`

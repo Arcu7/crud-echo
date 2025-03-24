@@ -3,28 +3,25 @@ package handlers
 import (
 	"crud-echo/helper"
 	"crud-echo/internal/models"
+	uc "crud-echo/internal/usecase"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"gorm.io/gorm"
 )
 
 type BooksHandler struct {
-	DB *gorm.DB
+	BUC *uc.BookUseCase
 }
 
 func (h BooksHandler) CreateBook(c echo.Context) error {
-	b := new(models.Books)
-	if err := c.Bind(b); err != nil {
+	var b models.Books
+
+	if err := c.Bind(&b); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if err := c.Validate(b); err != nil {
-		return err
-	}
-
-	if err := h.DB.Create(&b).Error; err != nil {
+	if err := h.BUC.CreateBook(&b); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
@@ -40,7 +37,7 @@ func (h BooksHandler) GetBook(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	if err := h.DB.First(&b, id).Error; err != nil {
+	if err = h.BUC.GetBook(&b, id); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err)
 	}
 
@@ -52,12 +49,16 @@ func (h BooksHandler) GetAllBooks(c echo.Context) error {
 	var b models.BooksList
 
 	// idk what's this for
-	available := c.QueryParam("available")
-	if available != "true" {
+	available, err := strconv.ParseBool(c.QueryParam("available"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "Invalid query parameter (only true or false)")
 	}
 
-	if err := h.DB.Find(&b).Error; err != nil {
+	if !available {
+		return echo.NewHTTPError(http.StatusBadRequest, "Available is not true")
+	}
+
+	if err := h.BUC.GetAllBooks(&b); err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, err)
 	}
 
@@ -66,27 +67,16 @@ func (h BooksHandler) GetAllBooks(c echo.Context) error {
 }
 
 func (h BooksHandler) UpdateBook(c echo.Context) error {
-	b := new(models.Books)
-	if err := c.Bind(b); err != nil {
+	var b models.Books
+
+	if err := c.Bind(&b); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if err := c.Validate(b); err != nil {
-		return err
-	}
-
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
-	}
-	b.ID = id
-
-	if err := h.DB.Save(&b).Error; err != nil {
+	if err := h.BUC.UpdateBook(&b); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	// old
-	// return c.String(http.StatusOK, "Books ID "+c.Param("id")+" has been updated\n")
 	resp := helper.CustomResponse(true, "Books has been updated")
 	return c.JSON(http.StatusOK, resp)
 }
@@ -94,17 +84,14 @@ func (h BooksHandler) UpdateBook(c echo.Context) error {
 func (h BooksHandler) DeleteBook(c echo.Context) error {
 	var b models.Books
 
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	if err := c.Bind(&b); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err)
+	}
+
+	if err := h.BUC.DeleteBook(&b); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 
-	if err := h.DB.Delete(&b, id).Error; err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
-	}
-
-	// ol
-	// return c.String(http.StatusOK, "Books ID "+c.Param("id")+" has been deleted\n")
 	resp := helper.CustomResponse(true, "Books has been deleted")
 	return c.JSON(http.StatusOK, resp)
 }

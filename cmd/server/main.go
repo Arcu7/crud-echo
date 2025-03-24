@@ -4,6 +4,8 @@ import (
 	"crud-echo/internal/inbound/handlers"
 	"crud-echo/internal/inbound/routers"
 	"crud-echo/internal/outbound/database"
+	"crud-echo/internal/repository"
+	uc "crud-echo/internal/usecase"
 	vc "crud-echo/internal/usecase/validators_custom"
 	"log"
 
@@ -28,9 +30,12 @@ func main() {
 
 	e.Debug = true
 
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
+	// e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
-	booksHandler := &handlers.BooksHandler{DB: db}
+	repo := repository.NewBookRepository(db)
+	validate2 := &vc.CustomValidator{Validator: validator.New()}
+	usecase := uc.NewBookUseCase(repo, validate2)
+	booksHandler := &handlers.BooksHandler{BUC: usecase}
 	routers.RegisterRoutes(e, booksHandler)
 
 	e.Logger.Fatal(e.Start(":1323"))
