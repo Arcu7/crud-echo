@@ -5,8 +5,7 @@ import (
 	"crud-echo/internal/inbound/routers"
 	"crud-echo/internal/outbound/database"
 	"crud-echo/internal/repository"
-	uc "crud-echo/internal/usecase"
-	vc "crud-echo/internal/usecase/validators_custom"
+	"crud-echo/internal/usecase"
 	"log"
 
 	"github.com/go-playground/validator/v10"
@@ -15,12 +14,8 @@ import (
 )
 
 func main() {
-	db, err := database.Connect()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if err := database.Migrate(db); err != nil {
+	db := database.NewPostgresDB()
+	if err := db.Migrate(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -30,12 +25,10 @@ func main() {
 
 	e.Debug = true
 
-	// e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	repo := repository.NewBookRepository(db)
-	validate2 := &vc.CustomValidator{Validator: validator.New()}
-	usecase := uc.NewBookUseCase(repo, validate2)
-	booksHandler := &handlers.BooksHandler{BUC: usecase}
+	booksRepo := repository.NewBooksRepository(db.DB)
+	validator := &usecase.CustomValidator{Validator: validator.New()}
+	booksUseCase := usecase.NewBooksUseCase(booksRepo, validator)
+	booksHandler := &handlers.BooksHandler{BUC: booksUseCase}
 	routers.RegisterRoutes(e, booksHandler)
 
 	e.Logger.Fatal(e.Start(":1323"))

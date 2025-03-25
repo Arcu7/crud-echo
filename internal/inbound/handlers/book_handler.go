@@ -11,18 +11,20 @@ import (
 )
 
 type BooksHandler struct {
-	BUC *uc.BookUseCase
+	BUC *uc.BooksUseCase
 }
 
 func (h BooksHandler) CreateBook(c echo.Context) error {
-	var b models.Books
+	var b models.CreateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err)
+		return c.JSON(http.StatusBadRequest, helper.CustomResponse(false, "Invalid request"))
 	}
 
-	if err := h.BUC.CreateBook(&b); err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err)
+	if _, err := h.BUC.CreateBook(b); err != nil {
+		// return echo.NewHTTPError(http.StatusInternalServerError, err)
+		// return c.JSON(http.StatusInternalServerError, helper.CustomResponse(false, err.Error()))
+		return err
 	}
 
 	resp := helper.CustomResponse(true, "Books has been created")
@@ -67,13 +69,13 @@ func (h BooksHandler) GetAllBooks(c echo.Context) error {
 }
 
 func (h BooksHandler) UpdateBook(c echo.Context) error {
-	var b models.Books
+	var b models.UpdateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err)
 	}
 
-	if err := h.BUC.UpdateBook(&b); err != nil {
+	if err := h.BUC.UpdateBook(b); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err)
 	}
 

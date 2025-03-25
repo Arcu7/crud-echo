@@ -8,7 +8,11 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func Connect() (*gorm.DB, error) {
+type PostgresDB struct {
+	DB *gorm.DB
+}
+
+func NewPostgresDB() *PostgresDB {
 	dsn := "user=rif password=angelcf511 dbname=project_1 port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 	database, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Info),
@@ -16,9 +20,13 @@ func Connect() (*gorm.DB, error) {
 	if err != nil {
 		panic("failed to connect database")
 	}
-	return database, err
+
+	psqldb := new(PostgresDB)
+	psqldb.DB = database
+
+	return psqldb
 }
 
-func Migrate(db *gorm.DB) error {
-	return db.AutoMigrate(&models.Books{})
+func (psqldb PostgresDB) Migrate() error {
+	return psqldb.DB.AutoMigrate(&models.Books{})
 }
