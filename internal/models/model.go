@@ -50,15 +50,15 @@ type DeleteBooksRequest struct {
 
 type BooksList []Books
 
-type BooksResponse struct {
+type BooksSummary struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Qty         int    `json:"qty"`
 }
 
-func (b Books) ToBooksResponse() BooksResponse {
-	return BooksResponse{
+func (b Books) ToBooksSummary() *BooksSummary {
+	return &BooksSummary{
 		ID:          b.ID,
 		Title:       b.Title,
 		Description: b.Description,
@@ -66,15 +66,15 @@ func (b Books) ToBooksResponse() BooksResponse {
 	}
 }
 
-func (bl BooksList) ToBooksResponse() []BooksResponse {
-	var resp []BooksResponse
+func (bl BooksList) ToBooksSummary() *[]BooksSummary {
+	var resp []BooksSummary
 	for _, b := range bl {
-		resp = append(resp, BooksResponse{
+		resp = append(resp, BooksSummary{
 			ID:          b.ID,
 			Title:       b.Title,
 			Description: b.Description,
 			Qty:         b.Qty,
 		})
 	}
-	return resp
+	return &resp
 }

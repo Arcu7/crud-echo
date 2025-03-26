@@ -40,11 +40,12 @@ func (h BooksHandler) GetBook(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, err)
 	}
 
-	if err = h.BUC.GetBook(&b, id); err != nil {
+	resp, err := h.BUC.GetBook(&b, id)
+	if err != nil {
 		return err
 	}
 
-	resp := b.ToBooksResponse()
+	// resp := b.ToBooksResponse()
 	return c.JSON(http.StatusOK, resp)
 }
 
@@ -61,11 +62,12 @@ func (h BooksHandler) GetAllBooks(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, "Available is not true")
 	}
 
-	if err := h.BUC.GetAllBooks(&b); err != nil {
+	resp, err := h.BUC.GetAllBooks(&b)
+	if err != nil {
 		return err
 	}
 
-	resp := b.ToBooksResponse()
+	// resp := b.ToBooksResponse()
 	return c.JSON(http.StatusOK, resp)
 }
 

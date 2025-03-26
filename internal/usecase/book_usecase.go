@@ -30,12 +30,22 @@ func (uc *BooksUseCase) CreateBook(request models.CreateBooksRequest) (*models.B
 	return bookData, nil
 }
 
-func (uc *BooksUseCase) GetBook(book *models.Books, id int) error {
-	return uc.bookRepo.GetByID(book, id)
+func (uc *BooksUseCase) GetBook(book *models.Books, id int) (*models.BooksSummary, error) {
+	// return uc.bookRepo.GetByID(book, id)
+	if err := uc.bookRepo.GetByID(book, id); err != nil {
+		return nil, err
+	}
+
+	return book.ToBooksSummary(), nil
 }
 
-func (uc *BooksUseCase) GetAllBooks(book *models.BooksList) error {
-	return uc.bookRepo.GetAll(book)
+func (uc *BooksUseCase) GetAllBooks(book *models.BooksList) (*[]models.BooksSummary, error) {
+	// return uc.bookRepo.GetAll(book)
+	if err := uc.bookRepo.GetAll(book); err != nil {
+		return nil, err
+	}
+
+	return book.ToBooksSummary(), nil
 }
 
 func (uc *BooksUseCase) UpdateBook(book models.UpdateBooksRequest) error {

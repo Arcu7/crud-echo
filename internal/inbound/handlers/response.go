@@ -3,7 +3,6 @@ package handlers
 import "github.com/labstack/echo/v4"
 
 type Response struct {
-	// Code    int    `json:"code"`
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
 }
