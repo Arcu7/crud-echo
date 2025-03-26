@@ -1,7 +1,6 @@
 package models
 
 import (
-	"database/sql"
 	"time"
 )
 
@@ -23,12 +22,12 @@ type BooksRepository interface {
 // }
 
 type Books struct {
-	ID          int          `json:"id" gorm:"primaryKey;autoIncrement;not null"`
-	Title       string       `json:"title" gorm:"type:varchar(50);not null"`
-	Description string       `json:"description" gorm:"type:varchar(255);not null"`
-	Qty         int          `json:"qty" gorm:"not null"`
-	Created_at  time.Time    `json:"created_at" gorm:"autoCreateTime;type:timestamptz;not null"`
-	Updated_at  sql.NullTime `json:"updated_at" gorm:"autoUpdateTime;type:timestamptz"`
+	ID          int       `json:"id" gorm:"primaryKey;autoIncrement;not null"`
+	Title       string    `json:"title" gorm:"type:varchar(50);not null"`
+	Description string    `json:"description" gorm:"type:varchar(255);not null"`
+	Qty         int       `json:"qty" gorm:"not null"`
+	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime;type:timestamptz;not null"`
+	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime;type:timestamptz"`
 }
 
 type CreateBooksRequest struct {

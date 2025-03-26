@@ -24,7 +24,7 @@ func (h BooksHandler) CreateBook(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, err)
 	}
 
-	if _, err := h.BUC.CreateBook(b); err != nil {
+	if _, err := h.BUC.CreateBook(&b); err != nil {
 		return err
 	}
 
