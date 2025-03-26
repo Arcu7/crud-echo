@@ -10,7 +10,7 @@ type BooksRepository struct {
 	DB *gorm.DB
 }
 
-func NewBooksRepository(db *gorm.DB) models.BooksRepository {
+func NewBooksRepository(db *gorm.DB) *BooksRepository {
 	return &BooksRepository{DB: db}
 }
 
@@ -29,7 +29,11 @@ func (r *BooksRepository) GetAll(books *models.BooksList) error {
 }
 
 func (r *BooksRepository) Update(book *models.Books) error {
-	return r.DB.Save(&book).Error
+	result := r.DB.Model(&book).UpdateColumns(models.Books{Title: book.Title, Description: book.Description, Qty: book.Qty})
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return result.Error
 }
 
 func (r *BooksRepository) Delete(book *models.Books) error {
