@@ -15,7 +15,8 @@ func NewBooksRepository(db *gorm.DB) *BooksRepository {
 }
 
 func (r *BooksRepository) Create(book *models.Books) error {
-	return r.DB.Create(book).Error
+	err := r.DB.Create(&book).Error
+	return err
 }
 
 func (r *BooksRepository) GetByID(book *models.Books, id int) error {
@@ -29,13 +30,21 @@ func (r *BooksRepository) GetAll(books *models.BooksList) error {
 }
 
 func (r *BooksRepository) Update(book *models.Books) error {
-	result := r.DB.Model(&book).UpdateColumns(models.Books{Title: book.Title, Description: book.Description, Qty: book.Qty})
+	result := r.DB.Model(&book).Updates(models.Books{
+		Title:       book.Title,
+		Description: book.Description,
+		Qty:         book.Qty,
+	})
+	if result.Error != nil {
+		return result.Error
+	}
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	return result.Error
+	return nil
 }
 
 func (r *BooksRepository) Delete(book *models.Books) error {
-	return r.DB.Delete(&book).Error
+	result := r.DB.Delete(&book).Error
+	return result
 }
