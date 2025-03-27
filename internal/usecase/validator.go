@@ -1,10 +1,9 @@
 package usecase
 
 import (
-	"net/http"
+	"crud-echo/internal/models"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/labstack/echo/v4"
 )
 
 type CustomValidator struct {
@@ -18,8 +17,7 @@ func NewCustomValidator(validator *validator.Validate) *CustomValidator {
 func (cv *CustomValidator) Validate(i interface{}) error {
 	if err := cv.Validator.Struct(i); err != nil {
 		fmterr := formatValidationErrors(err)
-
-		return echo.NewHTTPError(http.StatusBadRequest, fmterr)
+		return &models.ValidationError{Message: "invalid input", Errors: fmterr}
 	}
 	return nil
 }

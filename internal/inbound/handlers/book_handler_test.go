@@ -3,7 +3,6 @@ package handlers
 import (
 	"bytes"
 	"crud-echo/internal/models"
-	vc "crud-echo/internal/usecase/validators_custom"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -41,7 +40,7 @@ func CreateMockDB(t *testing.T) (*sql.DB, *gorm.DB, sqlmock.Sqlmock) {
 	return db, gdb, mock
 }
 
-func TestCreateUser(t *testing.T) {
+func TestCreateBooks(t *testing.T) {
 	e := echo.New()
 	e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
@@ -49,9 +48,9 @@ func TestCreateUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		user := models.User{
+		user := models.Books{
 			Name:  "testuser",
 			Email: "test@gmail.com",
 			Age:   20,
@@ -64,8 +63,8 @@ func TestCreateUser(t *testing.T) {
 				AddRow(1))
 		mock.ExpectCommit()
 
-		expectedUser := user
-		expectedUser.ID = 1
+		expectedBooks := user
+		expectedBooks.ID = 1
 
 		body, err := json.Marshal(user)
 		if err != nil {
@@ -77,15 +76,15 @@ func TestCreateUser(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		if assert.NoError(t, userHandler.CreateUser(c)) {
+		if assert.NoError(t, userHandler.CreateBooks(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
-			var response models.User
+			var response models.Books
 
 			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 				t.Fatal("Error in unmarshalling response: ", err)
 			}
 
-			assert.Equal(t, expectedUser, response)
+			assert.Equal(t, expectedBooks, response)
 		}
 
 		if err := mock.ExpectationsWereMet(); err != nil {
@@ -96,20 +95,20 @@ func TestCreateUser(t *testing.T) {
 		sqldb, db, _ := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
 		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader([]byte(`{test`)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		if err := userHandler.CreateUser(c); assert.Error(t, err) {
+		if err := userHandler.CreateBooks(c); assert.Error(t, err) {
 			assert.Equal(t, http.StatusBadRequest, err.(*echo.HTTPError).Code)
 		}
 	})
 }
 
-func TestGetUser(t *testing.T) {
+func TestGetBooks(t *testing.T) {
 	e := echo.New()
 	e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
@@ -117,9 +116,9 @@ func TestGetUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		user := models.User{
+		user := models.Books{
 			ID:    1,
 			Name:  "testuser",
 			Email: "test@gmail.com",
@@ -136,10 +135,10 @@ func TestGetUser(t *testing.T) {
 		c.SetParamNames("id")
 		c.SetParamValues(strconv.Itoa(user.ID))
 
-		if assert.NoError(t, userHandler.GetUser(c)) {
+		if assert.NoError(t, userHandler.GetBooks(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 
-			var response models.User
+			var response models.Books
 			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 				t.Fatal("Error in unmarshalling response: ", err)
 			}
@@ -152,7 +151,7 @@ func TestGetUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
 		mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"."id" = \$1 ORDER BY "users"."id" LIMIT \$2`).
 			WillReturnError(gorm.ErrRecordNotFound)
@@ -163,7 +162,7 @@ func TestGetUser(t *testing.T) {
 		c.SetParamNames("id")
 		c.SetParamValues("999")
 
-		if err := userHandler.GetUser(c); assert.Error(t, err) {
+		if err := userHandler.GetBooks(c); assert.Error(t, err) {
 			assert.Equal(t, http.StatusNotFound, err.(*echo.HTTPError).Code)
 			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
 		}
@@ -173,7 +172,7 @@ func TestGetUser(t *testing.T) {
 	})
 }
 
-func TestGetAllUser(t *testing.T) {
+func TestGetAllBooks(t *testing.T) {
 	e := echo.New()
 	e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
@@ -181,9 +180,9 @@ func TestGetAllUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		user := []models.User{{ID: 1, Name: "testuser", Email: "tes@gmail.com"}}
+		user := []models.Books{{ID: 1, Name: "testuser", Email: "tes@gmail.com"}}
 
 		mock.ExpectQuery(`SELECT \* FROM "users"`).
 			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).
@@ -193,10 +192,10 @@ func TestGetAllUser(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		if assert.NoError(t, userHandler.GetAllUsers(c)) {
+		if assert.NoError(t, userHandler.GetAllBookss(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 
-			var response []models.User
+			var response []models.Books
 			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 				t.Fatal("Error in unmarshalling response: ", err)
 			}
@@ -209,7 +208,7 @@ func TestGetAllUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
 		mock.ExpectQuery(`SELECT \* FROM "users"`).
 			WillReturnError(gorm.ErrRecordNotFound)
@@ -218,7 +217,7 @@ func TestGetAllUser(t *testing.T) {
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		if err := userHandler.GetAllUsers(c); assert.Error(t, err) {
+		if err := userHandler.GetAllBookss(c); assert.Error(t, err) {
 			assert.Equal(t, http.StatusNotFound, err.(*echo.HTTPError).Code)
 			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
 		}
@@ -228,7 +227,7 @@ func TestGetAllUser(t *testing.T) {
 	})
 }
 
-func TestUpdateUser(t *testing.T) {
+func TestUpdateBooks(t *testing.T) {
 	e := echo.New()
 	e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
@@ -236,9 +235,9 @@ func TestUpdateUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		user := models.User{
+		user := models.Books{
 			ID:    1,
 			Name:  "testuserupdate",
 			Email: "testupdate@gmail.com",
@@ -260,9 +259,9 @@ func TestUpdateUser(t *testing.T) {
 		c.SetParamNames("id")
 		c.SetParamValues(strconv.Itoa(user.ID))
 
-		expectedMessage := "User ID " + c.Param("id") + " has been updated\n"
+		expectedMessage := "Books ID " + c.Param("id") + " has been updated\n"
 
-		if assert.NoError(t, userHandler.UpdateUser(c)) {
+		if assert.NoError(t, userHandler.UpdateBooks(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, rec.Body.String(), expectedMessage)
 		}
@@ -275,20 +274,20 @@ func TestUpdateUser(t *testing.T) {
 		sqldb, db, _ := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
 		req := httptest.NewRequest(http.MethodPut, "/users/999", bytes.NewReader([]byte(`{test`)))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
-		if err := userHandler.UpdateUser(c); assert.Error(t, err) {
+		if err := userHandler.UpdateBooks(c); assert.Error(t, err) {
 			assert.Equal(t, http.StatusBadRequest, err.(*echo.HTTPError).Code)
 		}
 	})
 }
 
-func TestDeleteUser(t *testing.T) {
+func TestDeleteBooks(t *testing.T) {
 	e := echo.New()
 	e.Validator = &vc.CustomValidator{Validator: validator.New()}
 
@@ -296,25 +295,25 @@ func TestDeleteUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		deletedUserID := 999
+		deletedBooksID := 999
 
 		mock.ExpectBegin()
 		mock.ExpectExec(`DELETE FROM "users" WHERE "users"."id" = \$1`).
-			WithArgs(deletedUserID).
+			WithArgs(deletedBooksID).
 			WillReturnResult(sqlmock.NewResult(1, 1))
 		mock.ExpectCommit()
 
-		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedUserID), nil)
+		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedBooksID), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(deletedUserID))
+		c.SetParamValues(strconv.Itoa(deletedBooksID))
 
-		expectedMessage := "User ID " + c.Param("id") + " has been deleted\n"
+		expectedMessage := "Books ID " + c.Param("id") + " has been deleted\n"
 
-		if assert.NoError(t, userHandler.DeleteUser(c)) {
+		if assert.NoError(t, userHandler.DeleteBooks(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			assert.Equal(t, rec.Body.String(), expectedMessage)
 		}
@@ -326,23 +325,23 @@ func TestDeleteUser(t *testing.T) {
 		sqldb, db, mock := CreateMockDB(t)
 		defer sqldb.Close()
 
-		userHandler := UserHandler{DB: db}
+		userHandler := BooksHandler{DB: db}
 
-		deletedUserID := 999
+		deletedBooksID := 999
 
 		mock.ExpectBegin()
 		mock.ExpectExec(`DELETE FROM "users" WHERE "users"."id" = \$1`).
-			WithArgs(deletedUserID).
+			WithArgs(deletedBooksID).
 			WillReturnError(gorm.ErrRecordNotFound)
 		mock.ExpectRollback()
 
-		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedUserID), nil)
+		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedBooksID), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(deletedUserID))
+		c.SetParamValues(strconv.Itoa(deletedBooksID))
 
-		if err := userHandler.DeleteUser(c); assert.Error(t, err) {
+		if err := userHandler.DeleteBooks(c); assert.Error(t, err) {
 			assert.Equal(t, http.StatusInternalServerError, err.(*echo.HTTPError).Code)
 			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
 		}

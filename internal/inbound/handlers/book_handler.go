@@ -3,6 +3,7 @@ package handlers
 import (
 	"crud-echo/internal/models"
 	uc "crud-echo/internal/usecase"
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -21,53 +22,65 @@ func (h BooksHandler) CreateBook(c echo.Context) error {
 	var b models.CreateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
 	}
 
 	if _, err := h.BUC.CreateBook(&b); err != nil {
-		return err
+		var ve *models.ValidationError
+		if errors.As(err, &ve) {
+			return ValidationErrorResponse(c, ve.Message, ve.Errors)
+		}
+		switch err {
+		case models.ErrResourceExistAlready:
+			return CustomResponse(c, http.StatusConflict, false, "Book already exists")
+		default:
+			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		}
 	}
 
 	resp := CustomResponse(c, http.StatusOK, true, "Book has been created")
 	return resp
 }
 
-func (h BooksHandler) GetBook(c echo.Context) error {
+func (h BooksHandler) GetBookByID(c echo.Context) error {
 	var b models.Books
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, err)
+		return CustomResponse(c, http.StatusBadRequest, false, "Invalid ID format")
 	}
 
-	resp, err := h.BUC.GetBook(&b, id)
+	resp, err := h.BUC.GetBookByID(&b, id)
 	if err != nil {
-		return err
+		switch err {
+		case models.ErrNotFound:
+			return CustomResponse(c, http.StatusNotFound, false, "Book not found")
+		default:
+			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		}
 	}
 
-	// resp := b.ToBooksResponse()
 	return c.JSON(http.StatusOK, resp)
 }
 
 func (h BooksHandler) GetAllBooks(c echo.Context) error {
 	var b models.BooksList
 
-	// idk what's this for
 	available, err := strconv.ParseBool(c.QueryParam("available"))
 	if err != nil {
-		return c.JSON(http.StatusBadRequest, "Invalid query parameter (only true or false)")
+		return CustomResponse(c, http.StatusBadRequest, false, "Invalid query parameter (only true or false)")
 	}
 
-	if !available {
-		return c.JSON(http.StatusBadRequest, "Available is not true")
-	}
-
-	resp, err := h.BUC.GetAllBooks(&b)
+	resp, err := h.BUC.GetAllBooks(&b, available)
 	if err != nil {
-		return err
+		switch err {
+		case models.ErrTableEmpty:
+			return CustomResponse(c, http.StatusNotFound, false, "Table is empty")
+		default:
+			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		}
 	}
 
-	// resp := b.ToBooksResponse()
 	return c.JSON(http.StatusOK, resp)
 }
 
@@ -75,11 +88,21 @@ func (h BooksHandler) UpdateBook(c echo.Context) error {
 	var b models.UpdateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
 	}
 
-	if err := h.BUC.UpdateBook(b); err != nil {
-		return err
+	if err := h.BUC.UpdateBook(&b); err != nil {
+		switch e := err.(type) {
+		case *models.ValidationError:
+			return ValidationErrorResponse(c, e.Message, e.Errors)
+		case error:
+			switch err {
+			case models.ErrNotFound:
+				return CustomResponse(c, http.StatusNotFound, false, "Book not found")
+			default:
+				return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+			}
+		}
 	}
 
 	resp := CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been updated")
@@ -87,14 +110,24 @@ func (h BooksHandler) UpdateBook(c echo.Context) error {
 }
 
 func (h BooksHandler) DeleteBook(c echo.Context) error {
-	var b models.Books
+	var b models.DeleteBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return c.JSON(http.StatusBadRequest, err)
+		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
 	}
 
 	if err := h.BUC.DeleteBook(&b); err != nil {
-		return err
+		switch e := err.(type) {
+		case *models.ValidationError:
+			return ValidationErrorResponse(c, e.Message, e.Errors)
+		case error:
+			switch err {
+			case models.ErrNotFound:
+				return CustomResponse(c, http.StatusNotFound, false, "Book not found")
+			default:
+				return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+			}
+		}
 	}
 
 	resp := CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been deleted")
