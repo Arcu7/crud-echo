@@ -1,10 +1,11 @@
 with-expecter: true
 packages:
-  crud-echo:
+  crud-echo/internal/usecase:
     # place your package-specific config here
     config:
     interfaces:
       # select the interfaces you want mocked
-      Foo:
+      usecaseBooksRepository:
         # Modify package-level config for this specific interface (if applicable)
         config:
+          dir: "{{.InterfaceDir}}"
