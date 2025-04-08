@@ -22,19 +22,17 @@ func (h BooksHandler) CreateBook(c echo.Context) error {
 	var b models.CreateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
+		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
 	}
 
 	if _, err := h.BUC.CreateBook(&b); err != nil {
 		var ve *models.ValidationError
 		if errors.As(err, &ve) {
 			return ValidationErrorResponse(c, ve.Message, ve.Errors)
-		}
-		switch err {
-		case models.ErrResourceExistAlready:
-			return CustomResponse(c, http.StatusConflict, false, "Book already exists")
-		default:
-			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		} else if errors.Is(err, models.ErrResourceExistAlready) {
+			return CustomResponse(c, http.StatusConflict, false, err.Error())
+		} else {
+			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
 		}
 	}
 
@@ -47,16 +45,15 @@ func (h BooksHandler) GetBookByID(c echo.Context) error {
 
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, "Invalid ID format")
+		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
 	}
 
 	resp, err := h.BUC.GetBookByID(&b, id)
 	if err != nil {
-		switch err {
-		case models.ErrNotFound:
-			return CustomResponse(c, http.StatusNotFound, false, "Book not found")
-		default:
-			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		if errors.Is(err, models.ErrNotFound) {
+			return CustomResponse(c, http.StatusNotFound, false, err.Error())
+		} else {
+			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
 		}
 	}
 
@@ -68,16 +65,17 @@ func (h BooksHandler) GetAllBooks(c echo.Context) error {
 
 	available, err := strconv.ParseBool(c.QueryParam("available"))
 	if err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, "Invalid query parameter (only true or false)")
+		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
 	}
 
 	resp, err := h.BUC.GetAllBooks(&b, available)
 	if err != nil {
-		switch err {
-		case models.ErrTableEmpty:
-			return CustomResponse(c, http.StatusNotFound, false, "Table is empty")
-		default:
-			return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
+		if errors.Is(err, models.ErrTableEmpty) {
+			return CustomResponse(c, http.StatusNotFound, false, err.Error())
+		} else if errors.Is(err, models.ErrInvalidParam) {
+			return CustomResponse(c, http.StatusBadRequest, false, err.Error())
+		} else {
+			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
 		}
 	}
 
@@ -88,20 +86,17 @@ func (h BooksHandler) UpdateBook(c echo.Context) error {
 	var b models.UpdateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
+		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
 	}
 
 	if err := h.BUC.UpdateBook(&b); err != nil {
-		switch e := err.(type) {
-		case *models.ValidationError:
-			return ValidationErrorResponse(c, e.Message, e.Errors)
-		case error:
-			switch err {
-			case models.ErrNotFound:
-				return CustomResponse(c, http.StatusNotFound, false, "Book not found")
-			default:
-				return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
-			}
+		var ve *models.ValidationError
+		if errors.As(err, &ve) {
+			return ValidationErrorResponse(c, ve.Message, ve.Errors)
+		} else if errors.Is(err, models.ErrNotFound) {
+			return CustomResponse(c, http.StatusNotFound, false, err.Error())
+		} else {
+			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
 		}
 	}
 
@@ -113,20 +108,17 @@ func (h BooksHandler) DeleteBook(c echo.Context) error {
 	var b models.DeleteBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, "Invalid request body")
+		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
 	}
 
 	if err := h.BUC.DeleteBook(&b); err != nil {
-		switch e := err.(type) {
-		case *models.ValidationError:
-			return ValidationErrorResponse(c, e.Message, e.Errors)
-		case error:
-			switch err {
-			case models.ErrNotFound:
-				return CustomResponse(c, http.StatusNotFound, false, "Book not found")
-			default:
-				return CustomResponse(c, http.StatusInternalServerError, false, "Internal server error")
-			}
+		var ve *models.ValidationError
+		if errors.As(err, &ve) {
+			return ValidationErrorResponse(c, ve.Message, ve.Errors)
+		} else if errors.Is(err, models.ErrNotFound) {
+			return CustomResponse(c, http.StatusNotFound, false, err.Error())
+		} else {
+			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
 		}
 	}
 

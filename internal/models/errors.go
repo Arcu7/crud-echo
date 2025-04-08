@@ -4,6 +4,12 @@ import (
 	"errors"
 )
 
+const (
+	InternalServerError = "internal server error"
+	BadRequest          = "bad request"
+	NotFound            = "record not found"
+)
+
 var (
 	ErrInternalServerError  = errors.New("internal server error")
 	ErrBadRequest           = errors.New("bad request")
