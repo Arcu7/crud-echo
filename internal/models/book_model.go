@@ -4,15 +4,6 @@ import (
 	"time"
 )
 
-type BooksRepository interface {
-	Create(book *Books) error
-	GetByID(book *Books, id int) error
-	GetAll(users *BooksList) error
-	Update(book *Books) error
-	Delete(book *Books) error
-	ExistsByTitle(title string) (bool, error)
-}
-
 type Books struct {
 	ID          int       `gorm:"primaryKey;autoIncrement;not null"`
 	Title       string    `gorm:"type:varchar(50);not null"`

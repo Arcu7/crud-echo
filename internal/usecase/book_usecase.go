@@ -5,12 +5,21 @@ import (
 	"fmt"
 )
 
+type usecaseBooksRepository interface {
+	Create(book *models.Books) error
+	GetByID(book *models.Books, id int) error
+	GetAll(users *models.BooksList) error
+	Update(book *models.Books) error
+	Delete(book *models.Books) error
+	ExistsByTitle(title string) (bool, error)
+}
+
 type BooksUseCase struct {
-	bookRepo  models.BooksRepository
+	bookRepo  usecaseBooksRepository
 	Validator *CustomValidator
 }
 
-func NewBooksUseCase(repo models.BooksRepository, validator *CustomValidator) *BooksUseCase {
+func NewBooksUseCase(repo usecaseBooksRepository, validator *CustomValidator) *BooksUseCase {
 	return &BooksUseCase{bookRepo: repo, Validator: validator}
 }
 
