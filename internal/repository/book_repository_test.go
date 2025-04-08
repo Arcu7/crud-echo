@@ -13,7 +13,7 @@ import (
 )
 
 // Helper function to create test book data
-func createTestBook(id int, title, description string, qty int) *models.Books {
+func createTestBook(id int, title string, description string, qty int) *models.Books {
 	return &models.Books{
 		ID:          id,
 		Title:       title,

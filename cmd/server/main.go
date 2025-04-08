@@ -26,8 +26,8 @@ func main() {
 	e.Debug = true
 
 	booksRepo := repository.NewBooksRepository(db.DB)
-	validator := usecase.NewCustomValidator(validator.New())
-	booksUseCase := usecase.NewBooksUseCase(booksRepo, validator)
+	booksValidator := usecase.NewCustomValidator(validator.New())
+	booksUseCase := usecase.NewBooksUseCase(booksRepo, booksValidator)
 	booksHandler := handlers.NewBooksHandler(booksUseCase)
 	routers.RegisterRoutes(e, booksHandler)
 
