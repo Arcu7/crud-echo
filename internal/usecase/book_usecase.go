@@ -25,7 +25,7 @@ func NewBooksUseCase(repo usecaseBooksRepository, validator *CustomValidator) *B
 
 func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.Books, error) {
 	if err := uc.Validator.Validate(request); err != nil {
-		return nil, fmt.Errorf("validaiton error: %w", err)
+		return nil, fmt.Errorf("validation error: %w", err)
 	}
 
 	exists, err := uc.bookRepo.ExistsByTitle(request.Title)
@@ -33,7 +33,7 @@ func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.
 		return nil, fmt.Errorf("repository error: %w", err)
 	}
 	if exists {
-		return nil, models.ErrResourceExistAlready
+		return nil, fmt.Errorf("repository error: %w", models.ErrResourceExistAlready)
 	}
 
 	bookData := &models.Books{
@@ -94,10 +94,6 @@ func (uc *BooksUseCase) DeleteBook(book *models.DeleteBooksRequest) error {
 
 	bookData := &models.Books{
 		ID: book.ID,
-	}
-
-	if err := uc.bookRepo.GetByID(bookData, bookData.ID); err != nil {
-		return fmt.Errorf("repository error: %w", err)
 	}
 
 	if err := uc.bookRepo.Delete(bookData); err != nil {
