@@ -60,17 +60,17 @@ func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
 
 func TestCreate(t *testing.T) {
 	tests := []struct {
-		name       string
-		book       *models.Books
-		mock       func(mock sqlmock.Sqlmock)
-		wantErr    bool
-		errType    error
-		expectedID int
+		name        string
+		bookRequest *models.Books
+		expectedID  int
+		mock        func(mock sqlmock.Sqlmock)
+		wantErr     bool
+		errType     error
 	}{
 		{
-			name:       "Success create book with valid data",
-			book:       createTestBook(0, "Test Title", "Test Description", 10),
-			expectedID: 1,
+			name:        "Success create book with valid data",
+			bookRequest: createTestBook(0, "Test Title", "Test Description", 10),
+			expectedID:  1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(`INSERT INTO "books" (.+) VALUES (.+)`).
@@ -82,8 +82,8 @@ func TestCreate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Database error during create",
-			book: createTestBook(0, "Test Title", "Test Description", 10),
+			name:        "Database error during create",
+			bookRequest: createTestBook(0, "Test Title", "Test Description", 10),
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(`INSERT INTO "books" (.+) VALUES (.+)`).
@@ -105,14 +105,14 @@ func TestCreate(t *testing.T) {
 
 			repo := NewBooksRepository(gdb)
 
-			err := repo.Create(tt.book)
+			err := repo.Create(tt.bookRequest)
 
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Equal(t, tt.errType, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedID, tt.book.ID)
+				assert.Equal(t, tt.expectedID, tt.bookRequest.ID)
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -125,16 +125,16 @@ func TestCreate(t *testing.T) {
 func TestGetByID(t *testing.T) {
 	tests := []struct {
 		name         string
-		book         *models.Books
+		bookRequest  *models.Books
+		expectedBook *models.Books
 		id           int
 		mock         func(mock sqlmock.Sqlmock)
 		wantErr      bool
 		errType      error
-		expectedBook *models.Books
 	}{
 		{
 			name:         "Success get book by ID",
-			book:         &models.Books{},
+			bookRequest:  &models.Books{},
 			id:           1,
 			expectedBook: createTestBook(1, "Test Title", "Test Description", 10),
 			mock: func(mock sqlmock.Sqlmock) {
@@ -147,9 +147,9 @@ func TestGetByID(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Book not found with non-existent ID",
-			book: &models.Books{},
-			id:   999,
+			name:        "Book not found with non-existent ID",
+			bookRequest: &models.Books{},
+			id:          999,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT (.+) FROM "books" WHERE "books"."id" = (.+) ORDER BY "books"."id" LIMIT (.+)`).
 					WithArgs(999, 1).
@@ -159,9 +159,9 @@ func TestGetByID(t *testing.T) {
 			errType: gorm.ErrRecordNotFound,
 		},
 		{
-			name: "Database error during get",
-			book: &models.Books{},
-			id:   1,
+			name:        "Database error during get",
+			bookRequest: &models.Books{},
+			id:          1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT (.+) FROM "books" WHERE "books"."id" = (.+) ORDER BY "books"."id" LIMIT (.+)`).
 					WithArgs(1, 1).
@@ -181,17 +181,17 @@ func TestGetByID(t *testing.T) {
 
 			repo := NewBooksRepository(gdb)
 
-			err := repo.GetByID(tt.book, tt.id)
+			err := repo.GetByID(tt.bookRequest, tt.id)
 
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Equal(t, tt.errType, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedBook.ID, tt.book.ID)
-				assert.Equal(t, tt.expectedBook.Title, tt.book.Title)
-				assert.Equal(t, tt.expectedBook.Description, tt.book.Description)
-				assert.Equal(t, tt.expectedBook.Qty, tt.book.Qty)
+				assert.Equal(t, tt.expectedBook.ID, tt.bookRequest.ID)
+				assert.Equal(t, tt.expectedBook.Title, tt.bookRequest.Title)
+				assert.Equal(t, tt.expectedBook.Description, tt.bookRequest.Description)
+				assert.Equal(t, tt.expectedBook.Qty, tt.bookRequest.Qty)
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -203,17 +203,17 @@ func TestGetByID(t *testing.T) {
 
 func TestGetAll(t *testing.T) {
 	tests := []struct {
-		name         string
-		books        *models.BooksList
-		mock         func(mock sqlmock.Sqlmock)
-		wantErr      bool
-		errType      error
-		expectedList *models.BooksList
+		name          string
+		books         *models.BooksList
+		expectedBooks *models.BooksList
+		mock          func(mock sqlmock.Sqlmock)
+		wantErr       bool
+		errType       error
 	}{
 		{
 			name:  "Success get all books",
 			books: &models.BooksList{},
-			expectedList: createTestBookList(
+			expectedBooks: createTestBookList(
 				createTestBook(1, "Test Title 1", "Test Description 1", 10),
 				createTestBook(2, "Test Title 2", "Test Description 2", 20),
 			),
@@ -264,8 +264,8 @@ func TestGetAll(t *testing.T) {
 				assert.Equal(t, tt.errType, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, len(*tt.expectedList), len(*tt.books))
-				for i, expected := range *tt.expectedList {
+				assert.Equal(t, len(*tt.expectedBooks), len(*tt.books))
+				for i, expected := range *tt.expectedBooks {
 					actual := (*tt.books)[i]
 					assert.Equal(t, expected.ID, actual.ID)
 					assert.Equal(t, expected.Title, actual.Title)
