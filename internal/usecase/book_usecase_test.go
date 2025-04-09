@@ -1,12 +1,12 @@
 package usecase
 
 import (
+	"crud-echo/internal/mock"
 	"crud-echo/internal/models"
 	"fmt"
 	"testing"
 	"time"
 
-	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
 )
@@ -18,7 +18,7 @@ func TestCreateBook(t *testing.T) {
 		name        string
 		bookRequest *models.CreateBooksRequest
 		expectedID  int
-		mock        func(mock *MockusecaseBooksRepository)
+		mock        func(mock *mock.MockusecaseBooksRepository)
 		wantErr     bool
 		errType     error
 	}{
@@ -30,7 +30,7 @@ func TestCreateBook(t *testing.T) {
 				Qty:         10,
 			},
 			expectedID: 1,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().ExistsByTitle("Test Title").Return(false, nil)
 				mock.EXPECT().Create(&models.Books{
 					Title:       "Test Title",
@@ -43,26 +43,6 @@ func TestCreateBook(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		// RESEARCH: do i need to create individual validation test cases?
-		{
-			name: "Failed create book due to validation errors",
-			bookRequest: &models.CreateBooksRequest{
-				Title:       "in",
-				Description: "in",
-				Qty:         -1,
-			},
-			mock: func(mock *MockusecaseBooksRepository) {
-			},
-			wantErr: true,
-			errType: fmt.Errorf("validation error: %w", &models.ValidationError{
-				Message: "invalid input",
-				Errors: map[string]string{
-					"Title":       "Should be at least 3 characters long",
-					"Description": "Should be at least 3 characters long",
-					"Qty":         "Should be greater than 0",
-				},
-			}),
-		},
 		{
 			name: "Failed create book due to title already exists",
 			bookRequest: &models.CreateBooksRequest{
@@ -70,11 +50,11 @@ func TestCreateBook(t *testing.T) {
 				Description: "Test Description",
 				Qty:         10,
 			},
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().ExistsByTitle("Test Title").Return(true, nil)
 			},
 			wantErr: true,
-			errType: models.ErrResourceExistAlready,
+			errType: fmt.Errorf("repository error: %w", models.ErrResourceExistAlready),
 		},
 		{
 			name: "Failed create book due to invalid DB",
@@ -83,7 +63,7 @@ func TestCreateBook(t *testing.T) {
 				Description: "Test Description",
 				Qty:         10,
 			},
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().ExistsByTitle("Test Title").Return(false, nil)
 				mock.EXPECT().Create(&models.Books{
 					Title:       "Test Title",
@@ -98,12 +78,10 @@ func TestCreateBook(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := NewMockusecaseBooksRepository(t)
+			mock := mock.NewMockusecaseBooksRepository(t)
 			tt.mock(mock)
 
-			ucValidator := NewCustomValidator(validator.New())
-
-			uc := NewBooksUseCase(mock, ucValidator)
+			uc := NewBooksUseCase(mock)
 
 			book, err := uc.CreateBook(tt.bookRequest)
 
@@ -127,7 +105,7 @@ func TestGetBookByID(t *testing.T) {
 		bookRequest  *models.Books
 		expectedBook *models.BooksSummary
 		id           int
-		mock         func(mock *MockusecaseBooksRepository)
+		mock         func(mock *mock.MockusecaseBooksRepository)
 		wantErr      bool
 		errType      error
 	}{
@@ -141,7 +119,7 @@ func TestGetBookByID(t *testing.T) {
 				Qty:         10,
 			},
 			id: 1,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetByID(&models.Books{}, 1).RunAndReturn(func(book *models.Books, id int) error {
 					book.ID = id
 					book.Title = "Test Title"
@@ -162,7 +140,7 @@ func TestGetBookByID(t *testing.T) {
 				Qty:         10,
 			},
 			id: 99,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetByID(&models.Books{}, 99).Return(gorm.ErrRecordNotFound)
 			},
 			wantErr: true,
@@ -178,7 +156,7 @@ func TestGetBookByID(t *testing.T) {
 				Qty:         10,
 			},
 			id: 1,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetByID(&models.Books{}, 1).Return(gorm.ErrInvalidDB)
 			},
 			wantErr: true,
@@ -188,14 +166,12 @@ func TestGetBookByID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := NewMockusecaseBooksRepository(t)
+			mock := mock.NewMockusecaseBooksRepository(t)
 			tt.mock(mock)
 
-			ucValidator := NewCustomValidator(validator.New())
+			uc := NewBooksUseCase(mock)
 
-			uc := NewBooksUseCase(mock, ucValidator)
-
-			book, err := uc.GetBookByID(tt.bookRequest, tt.id)
+			book, err := uc.GetBookByID(tt.id)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -217,7 +193,7 @@ func TestGetAllBooks(t *testing.T) {
 		booksRequest  *models.BooksList
 		expectedBooks *models.BooksList
 		available     bool
-		mock          func(mock *MockusecaseBooksRepository)
+		mock          func(mock *mock.MockusecaseBooksRepository)
 		wantErr       bool
 		errType       error
 	}{
@@ -239,7 +215,7 @@ func TestGetAllBooks(t *testing.T) {
 				},
 			},
 			available: true,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetAll(&models.BooksList{}).RunAndReturn(func(books *models.BooksList) error {
 					*books = models.BooksList{
 						{
@@ -264,7 +240,7 @@ func TestGetAllBooks(t *testing.T) {
 			name:         "Failed get all books because of invalid parameter",
 			booksRequest: &models.BooksList{},
 			available:    false,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 			},
 			wantErr: true,
 			errType: fmt.Errorf("invalid parameter"),
@@ -273,7 +249,7 @@ func TestGetAllBooks(t *testing.T) {
 			name:         "Failed get all books because no books found in database",
 			booksRequest: &models.BooksList{},
 			available:    true,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetAll(&models.BooksList{}).Return(gorm.ErrRecordNotFound)
 			},
 			wantErr: true,
@@ -283,7 +259,7 @@ func TestGetAllBooks(t *testing.T) {
 			name:         "Failed get all books because of database error",
 			booksRequest: &models.BooksList{},
 			available:    true,
-			mock: func(mock *MockusecaseBooksRepository) {
+			mock: func(mock *mock.MockusecaseBooksRepository) {
 				mock.EXPECT().GetAll(&models.BooksList{}).Return(gorm.ErrInvalidDB)
 			},
 			wantErr: true,
@@ -293,14 +269,12 @@ func TestGetAllBooks(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock := NewMockusecaseBooksRepository(t)
+			mock := mock.NewMockusecaseBooksRepository(t)
 			tt.mock(mock)
 
-			ucValidator := NewCustomValidator(validator.New())
+			uc := NewBooksUseCase(mock)
 
-			uc := NewBooksUseCase(mock, ucValidator)
-
-			books, err := uc.GetAllBooks(tt.booksRequest, tt.available)
+			books, err := uc.GetAllBooks(tt.available)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -320,9 +294,40 @@ func TestGetAllBooks(t *testing.T) {
 	}
 }
 
-//
 // func TestUpdateBook(t *testing.T) {
+// 	tests := []struct {
+// 		name         string
+// 		bookRequest  *models.Books
+// 		expectedBook *models.BooksSummary
+// 		mock         func(mock *mock.MockusecaseBooksRepository)
+// 		wantErr      bool
+// 		errType      error
+// 	}{
+// 		{
+// 			name: "Success update book with ID of 1",
+// 			bookRequest: &models.Books{
+// 				ID:          1,
+// 				Title:       "Updated Title",
+// 				Description: "Updated Description",
+// 				Qty:         15,
+// 			},
+// 			expectedBook: &models.BooksSummary{
+// 				ID:          1,
+// 				Title:       "Updated Title",
+// 				Description: "Updated Description",
+// 				Qty:         15,
+// 			},
+// 			mock: func(mock *mock.MockusecaseBooksRepository) {
+// 				mock.EXPECT().Update(&models.Books{
+// 					ID:          1,
+// 					Title:       "Updated Title",
+// 					Description: "Updated Description",
+// 					Qty:         15,
+// 				}).Return(nil)
+// 			},
+// 		},
+// 	}
 // }
-//
+
 // func TestDeleteBook(t *testing.T) {
 // }

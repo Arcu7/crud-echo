@@ -8,4 +8,5 @@ packages:
       usecaseBooksRepository:
         # Modify package-level config for this specific interface (if applicable)
         config:
-          dir: "{{.InterfaceDir}}"
+          dir: "internal/mock"
+          outpkg: "mock"

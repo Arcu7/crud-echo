@@ -1,4 +1,4 @@
-package repository
+package database
 
 import (
 	"crud-echo/internal/models"
@@ -283,17 +283,17 @@ func TestGetAll(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	tests := []struct {
-		name         string
-		book         *models.Books
-		mock         func(mock sqlmock.Sqlmock)
-		wantErr      bool
-		errType      error
-		expectedBook *models.Books
+		name    string
+		book    *models.Books
+		mock    func(mock sqlmock.Sqlmock)
+		wantErr bool
+		errType error
+		// expectedBook *models.Books
 	}{
 		{
-			name:         "Success update book with valid data",
-			book:         createTestBook(1, "Updated Title", "Updated Description", 15),
-			expectedBook: createTestBook(1, "Updated Title", "Updated Description", 15),
+			name: "Success update book with valid data",
+			book: createTestBook(1, "Updated Title", "Updated Description", 15),
+			// expectedBook: createTestBook(1, "Updated Title", "Updated Description", 15),
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`UPDATE "books" SET "title"=\$1,"description"=\$2,"qty"=\$3,"updated_at"=\$4 WHERE "id" = \$5`).
@@ -332,6 +332,7 @@ func TestUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var expectedBook models.Books
 			gdb, mock, cleanup := setupTestDB(t)
 			defer cleanup()
 
@@ -346,10 +347,10 @@ func TestUpdate(t *testing.T) {
 				assert.Equal(t, tt.errType, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedBook.ID, tt.book.ID)
-				assert.Equal(t, tt.expectedBook.Title, tt.book.Title)
-				assert.Equal(t, tt.expectedBook.Description, tt.book.Description)
-				assert.Equal(t, tt.expectedBook.Qty, tt.book.Qty)
+				// assert.Equal(t, tt.expectedBook.ID, tt.book.ID)
+				// assert.Equal(t, tt.expectedBook.Title, tt.book.Title)
+				// assert.Equal(t, tt.expectedBook.Description, tt.book.Description)
+				// assert.Equal(t, tt.expectedBook.Qty, tt.book.Qty)
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {

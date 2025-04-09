@@ -1,8 +1,6 @@
-package usecase
+package customvalidator
 
 import (
-	"crud-echo/internal/models"
-
 	"github.com/go-playground/validator/v10"
 )
 
@@ -16,8 +14,9 @@ func NewCustomValidator(validator *validator.Validate) *CustomValidator {
 
 func (cv *CustomValidator) Validate(i interface{}) error {
 	if err := cv.Validator.Struct(i); err != nil {
-		fmterr := formatValidationErrors(err)
-		return &models.ValidationError{Message: "invalid input", Errors: fmterr}
+		return err
+		// fmterr := formatValidationErrors(err)
+		// return &models.ValidationError{Message: "invalid input", Errors: fmterr}
 	}
 	return nil
 }

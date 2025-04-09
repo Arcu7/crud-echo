@@ -1,4 +1,4 @@
-package repository
+package database
 
 import (
 	"crud-echo/internal/models"
@@ -19,6 +19,8 @@ func (r *BooksRepository) Create(book *models.Books) error {
 
 	if result.Error != nil {
 		return result.Error
+	} else if book.ID == 0 {
+		return models.ErrInternalServerError
 	}
 
 	return nil
@@ -28,7 +30,6 @@ func (r *BooksRepository) GetByID(book *models.Books, id int) error {
 	result := r.DB.First(&book, id)
 
 	if result.Error != nil {
-		// have to do this?
 		if result.Error == gorm.ErrRecordNotFound {
 			return models.ErrNotFound
 		}
@@ -38,12 +39,12 @@ func (r *BooksRepository) GetByID(book *models.Books, id int) error {
 	return nil
 }
 
-func (r *BooksRepository) GetAll(books *models.BooksList) error {
+func (r *BooksRepository) GetAll(books *[]models.Books) error {
 	result := r.DB.Find(&books)
 
 	if result.Error != nil {
 		return result.Error
-	} else if result.RowsAffected < 1 || len(*books) == 0 { // maybe only need to do one check
+	} else if result.RowsAffected < 1 { // maybe only need to do one check
 		return models.ErrTableEmpty
 	}
 

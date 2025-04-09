@@ -30,8 +30,6 @@ type DeleteBooksRequest struct {
 	ID int `json:"id" validate:"required"`
 }
 
-type BooksList []Books
-
 type BooksSummary struct {
 	ID          int    `json:"id"`
 	Title       string `json:"title"`
@@ -46,17 +44,4 @@ func (b Books) ToBooksSummary() *BooksSummary {
 		Description: b.Description,
 		Qty:         b.Qty,
 	}
-}
-
-func (bl BooksList) ToBooksSummary() *[]BooksSummary {
-	var resp []BooksSummary
-	for _, b := range bl {
-		resp = append(resp, BooksSummary{
-			ID:          b.ID,
-			Title:       b.Title,
-			Description: b.Description,
-			Qty:         b.Qty,
-		})
-	}
-	return &resp
 }

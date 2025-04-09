@@ -1,9 +1,9 @@
 package handlers
 
 import (
+	"crud-echo/internal/inbound/customvalidator"
 	"crud-echo/internal/models"
 	uc "crud-echo/internal/usecase"
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -11,117 +11,95 @@ import (
 )
 
 type BooksHandler struct {
-	BUC *uc.BooksUseCase
+	buc *uc.BooksUseCase
+	cv  *customvalidator.CustomValidator
 }
 
-func NewBooksHandler(buc *uc.BooksUseCase) *BooksHandler {
-	return &BooksHandler{BUC: buc}
+func NewBooksHandler(buc *uc.BooksUseCase, validator *customvalidator.CustomValidator) *BooksHandler {
+	return &BooksHandler{buc: buc, cv: validator}
 }
 
 func (h BooksHandler) CreateBook(c echo.Context) error {
 	var b models.CreateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
 	}
 
-	if _, err := h.BUC.CreateBook(&b); err != nil {
-		var ve *models.ValidationError
-		if errors.As(err, &ve) {
-			return ValidationErrorResponse(c, ve.Message, ve.Errors)
-		} else if errors.Is(err, models.ErrResourceExistAlready) {
-			return CustomResponse(c, http.StatusConflict, false, err.Error())
-		} else {
-			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
-		}
+	if err := h.cv.Validate(b); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, models.ErrValidationError.Error())
 	}
 
-	resp := CustomResponse(c, http.StatusOK, true, "Book has been created")
-	return resp
+	_, err := h.buc.CreateBook(&b)
+	if err != nil {
+		return echo.NewHTTPError(models.GetErrorHTTPStatusCode(err), models.GetErrorHTTPStatusMessage(err))
+	}
+
+	return CustomResponse(c, http.StatusOK, true, "Book has been created", nil)
 }
 
 func (h BooksHandler) GetBookByID(c echo.Context) error {
-	var b models.Books
-
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
 	}
 
-	resp, err := h.BUC.GetBookByID(&b, id)
+	resp, err := h.buc.GetBookByID(id)
 	if err != nil {
-		if errors.Is(err, models.ErrNotFound) {
-			return CustomResponse(c, http.StatusNotFound, false, err.Error())
-		} else {
-			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
-		}
+		return echo.NewHTTPError(models.GetErrorHTTPStatusCode(err), models.GetErrorHTTPStatusMessage(err))
 	}
 
-	return c.JSON(http.StatusOK, resp)
+	// return c.JSON(http.StatusOK, resp)
+	return CustomResponse(c, http.StatusOK, true, "Book retrieved successfully", resp)
 }
 
 func (h BooksHandler) GetAllBooks(c echo.Context) error {
-	var b models.BooksList
-
 	available, err := strconv.ParseBool(c.QueryParam("available"))
 	if err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
 	}
 
-	resp, err := h.BUC.GetAllBooks(&b, available)
+	resp, err := h.buc.GetAllBooks(available)
 	if err != nil {
-		if errors.Is(err, models.ErrTableEmpty) {
-			return CustomResponse(c, http.StatusNotFound, false, err.Error())
-		} else if errors.Is(err, models.ErrInvalidParam) {
-			return CustomResponse(c, http.StatusBadRequest, false, err.Error())
-		} else {
-			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
-		}
+		return echo.NewHTTPError(models.GetErrorHTTPStatusCode(err), models.GetErrorHTTPStatusMessage(err))
 	}
 
-	return c.JSON(http.StatusOK, resp)
+	// return c.JSON(http.StatusOK, resp)
+	return CustomResponse(c, http.StatusOK, true, "Books retrieved successfully", resp)
 }
 
 func (h BooksHandler) UpdateBook(c echo.Context) error {
 	var b models.UpdateBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
 	}
 
-	if err := h.BUC.UpdateBook(&b); err != nil {
-		var ve *models.ValidationError
-		if errors.As(err, &ve) {
-			return ValidationErrorResponse(c, ve.Message, ve.Errors)
-		} else if errors.Is(err, models.ErrNotFound) {
-			return CustomResponse(c, http.StatusNotFound, false, err.Error())
-		} else {
-			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
-		}
+	if err := h.cv.Validate(b); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, models.ErrValidationError.Error())
 	}
 
-	resp := CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been updated")
-	return resp
+	if err := h.buc.UpdateBook(&b); err != nil {
+		return echo.NewHTTPError(models.GetErrorHTTPStatusCode(err), models.GetErrorHTTPStatusMessage(err))
+	}
+
+	return CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been updated", nil)
 }
 
 func (h BooksHandler) DeleteBook(c echo.Context) error {
 	var b models.DeleteBooksRequest
 
 	if err := c.Bind(&b); err != nil {
-		return CustomResponse(c, http.StatusBadRequest, false, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
 	}
 
-	if err := h.BUC.DeleteBook(&b); err != nil {
-		var ve *models.ValidationError
-		if errors.As(err, &ve) {
-			return ValidationErrorResponse(c, ve.Message, ve.Errors)
-		} else if errors.Is(err, models.ErrNotFound) {
-			return CustomResponse(c, http.StatusNotFound, false, err.Error())
-		} else {
-			return CustomResponse(c, http.StatusInternalServerError, false, err.Error())
-		}
+	if err := h.cv.Validate(b); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, models.ErrValidationError.Error())
 	}
 
-	resp := CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been deleted")
-	return resp
+	if err := h.buc.DeleteBook(&b); err != nil {
+		return echo.NewHTTPError(models.GetErrorHTTPStatusCode(err), models.GetErrorHTTPStatusMessage(err))
+	}
+
+	return CustomResponse(c, http.StatusOK, true, "Book with ID "+strconv.Itoa(b.ID)+" has been deleted", nil)
 }

@@ -1,32 +1,21 @@
 package handlers
 
 import (
-	"net/http"
-
 	"github.com/labstack/echo/v4"
 )
 
 type Response struct {
-	Status  bool              `json:"status"`
-	Message string            `json:"message,omitempty"`
-	Errors  map[string]string `json:"errors,omitempty"`
+	Status  bool   `json:"status"`
+	Message string `json:"message"`
+	Data    any    `json:"data,omitempty"` // maybe for other things
 }
 
-func CustomResponse(c echo.Context, code int, status bool, message string) error {
+func CustomResponse(c echo.Context, code int, status bool, message string, data any) error {
 	resp := Response{
 		Status:  status,
 		Message: message,
+		Data:    data,
 	}
 
 	return c.JSON(code, resp)
-}
-
-func ValidationErrorResponse(c echo.Context, message string, errors map[string]string) error {
-	resp := Response{
-		Status:  false,
-		Message: message,
-		Errors:  errors,
-	}
-
-	return c.JSON(http.StatusBadRequest, resp)
 }

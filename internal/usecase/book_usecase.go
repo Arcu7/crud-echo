@@ -8,26 +8,21 @@ import (
 type usecaseBooksRepository interface {
 	Create(book *models.Books) error
 	GetByID(book *models.Books, id int) error
-	GetAll(users *models.BooksList) error
+	GetAll(book *[]models.Books) error
 	Update(book *models.Books) error
 	Delete(book *models.Books) error
 	ExistsByTitle(title string) (bool, error)
 }
 
 type BooksUseCase struct {
-	bookRepo  usecaseBooksRepository
-	Validator *CustomValidator
+	bookRepo usecaseBooksRepository
 }
 
-func NewBooksUseCase(repo usecaseBooksRepository, validator *CustomValidator) *BooksUseCase {
-	return &BooksUseCase{bookRepo: repo, Validator: validator}
+func NewBooksUseCase(repo usecaseBooksRepository) *BooksUseCase {
+	return &BooksUseCase{bookRepo: repo}
 }
 
 func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.Books, error) {
-	if err := uc.Validator.Validate(request); err != nil {
-		return nil, fmt.Errorf("validation error: %w", err)
-	}
-
 	exists, err := uc.bookRepo.ExistsByTitle(request.Title)
 	if err != nil {
 		return nil, fmt.Errorf("repository error: %w", err)
@@ -48,31 +43,33 @@ func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.
 	return bookData, nil
 }
 
-func (uc *BooksUseCase) GetBookByID(book *models.Books, id int) (*models.BooksSummary, error) {
-	if err := uc.bookRepo.GetByID(book, id); err != nil {
+func (uc *BooksUseCase) GetBookByID(id int) (*models.BooksSummary, error) {
+	var book models.Books
+	if err := uc.bookRepo.GetByID(&book, id); err != nil {
 		return nil, fmt.Errorf("repository error: %w", err)
 	}
 
 	return book.ToBooksSummary(), nil
 }
 
-func (uc *BooksUseCase) GetAllBooks(book *models.BooksList, available bool) (*[]models.BooksSummary, error) {
+func (uc *BooksUseCase) GetAllBooks(available bool) (*[]models.BooksSummary, error) {
+	var books []models.Books
+	var booksList []models.BooksSummary
 	if !available {
 		return nil, models.ErrInvalidParam
 	}
 
-	if err := uc.bookRepo.GetAll(book); err != nil {
+	if err := uc.bookRepo.GetAll(&books); err != nil {
 		return nil, fmt.Errorf("repository error: %w", err)
 	}
 
-	return book.ToBooksSummary(), nil
+	for _, book := range books {
+		booksList = append(booksList, *book.ToBooksSummary())
+	}
+	return &booksList, nil
 }
 
 func (uc *BooksUseCase) UpdateBook(book *models.UpdateBooksRequest) error {
-	if err := uc.Validator.Validate(book); err != nil {
-		return fmt.Errorf("validation error: %w", err)
-	}
-
 	bookData := &models.Books{
 		ID:          book.ID,
 		Title:       book.Title,
@@ -88,10 +85,6 @@ func (uc *BooksUseCase) UpdateBook(book *models.UpdateBooksRequest) error {
 }
 
 func (uc *BooksUseCase) DeleteBook(book *models.DeleteBooksRequest) error {
-	if err := uc.Validator.Validate(book); err != nil {
-		return fmt.Errorf("validation error: %w", err)
-	}
-
 	bookData := &models.Books{
 		ID: book.ID,
 	}
