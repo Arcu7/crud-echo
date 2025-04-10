@@ -190,8 +190,8 @@ func TestGetBookByID(t *testing.T) {
 func TestGetAllBooks(t *testing.T) {
 	tests := []struct {
 		name          string
-		booksRequest  *models.BooksList
-		expectedBooks *models.BooksList
+		booksRequest  *[]models.Books
+		expectedBooks *[]models.BooksSummary
 		available     bool
 		mock          func(mock *mock.MockusecaseBooksRepository)
 		wantErr       bool
@@ -199,8 +199,8 @@ func TestGetAllBooks(t *testing.T) {
 	}{
 		{
 			name:         "Success get all books",
-			booksRequest: &models.BooksList{},
-			expectedBooks: &models.BooksList{
+			booksRequest: &[]models.Books{},
+			expectedBooks: &[]models.BooksSummary{
 				{
 					ID:          1,
 					Title:       "Test Title 1",
@@ -216,8 +216,9 @@ func TestGetAllBooks(t *testing.T) {
 			},
 			available: true,
 			mock: func(mock *mock.MockusecaseBooksRepository) {
-				mock.EXPECT().GetAll(&models.BooksList{}).RunAndReturn(func(books *models.BooksList) error {
-					*books = models.BooksList{
+				var arg []models.Books
+				mock.EXPECT().GetAll(&arg).RunAndReturn(func(books *[]models.Books) error {
+					*books = []models.Books{
 						{
 							ID:          1,
 							Title:       "Test Title 1",
@@ -238,7 +239,7 @@ func TestGetAllBooks(t *testing.T) {
 		},
 		{
 			name:         "Failed get all books because of invalid parameter",
-			booksRequest: &models.BooksList{},
+			booksRequest: &[]models.Books{},
 			available:    false,
 			mock: func(mock *mock.MockusecaseBooksRepository) {
 			},
@@ -247,20 +248,22 @@ func TestGetAllBooks(t *testing.T) {
 		},
 		{
 			name:         "Failed get all books because no books found in database",
-			booksRequest: &models.BooksList{},
+			booksRequest: &[]models.Books{},
 			available:    true,
 			mock: func(mock *mock.MockusecaseBooksRepository) {
-				mock.EXPECT().GetAll(&models.BooksList{}).Return(gorm.ErrRecordNotFound)
+				var arg []models.Books
+				mock.EXPECT().GetAll(&arg).Return(gorm.ErrRecordNotFound)
 			},
 			wantErr: true,
 			errType: fmt.Errorf("repository error: %w", gorm.ErrRecordNotFound),
 		},
 		{
 			name:         "Failed get all books because of database error",
-			booksRequest: &models.BooksList{},
+			booksRequest: &[]models.Books{},
 			available:    true,
 			mock: func(mock *mock.MockusecaseBooksRepository) {
-				mock.EXPECT().GetAll(&models.BooksList{}).Return(gorm.ErrInvalidDB)
+				var arg []models.Books
+				mock.EXPECT().GetAll(&arg).Return(gorm.ErrInvalidDB)
 			},
 			wantErr: true,
 			errType: fmt.Errorf("repository error: %w", gorm.ErrInvalidDB),
