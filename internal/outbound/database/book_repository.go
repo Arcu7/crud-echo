@@ -45,7 +45,7 @@ func (r *BooksRepository) GetAll(books *[]models.Books) error {
 	if result.Error != nil {
 		return result.Error
 	} else if result.RowsAffected < 1 { // maybe only need to do one check
-		return models.ErrTableEmpty
+		return models.ErrEmptyTable
 	}
 
 	return nil

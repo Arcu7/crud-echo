@@ -8,7 +8,7 @@ const (
 	InternalServerError  = "internal server error"
 	BadRequest           = "bad request"
 	NotFound             = "record not found"
-	TableEmpty           = "table is empty"
+	EmptyTable           = "table is empty"
 	ResourceExistAlready = "resource already exists"
 	InvalidParam         = "invalid parameter"
 	ValidationError      = "validation error"
@@ -19,7 +19,7 @@ var (
 	ErrBadRequest           = errors.New("bad request")
 	ErrNotFound             = errors.New("record not found")
 	ErrRecordNotCreated     = errors.New("record not created")
-	ErrTableEmpty           = errors.New("table is empty")
+	ErrEmptyTable           = errors.New("table is empty")
 	ErrResourceExistAlready = errors.New("resource already exists")
 	ErrInvalidParam         = errors.New("invalid parameter")
 	ErrValidationError      = errors.New("validation error")
@@ -31,7 +31,7 @@ func GetErrorHTTPStatusCode(err error) int {
 		return 500
 	case errors.Is(err, ErrBadRequest), errors.Is(err, ErrInvalidParam):
 		return 400
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrTableEmpty):
+	case errors.Is(err, ErrNotFound), errors.Is(err, ErrEmptyTable):
 		return 404
 	case errors.Is(err, ErrResourceExistAlready):
 		return 409
@@ -51,8 +51,8 @@ func GetErrorHTTPStatusMessage(err error) string {
 		return BadRequest
 	case errors.Is(err, ErrNotFound):
 		return NotFound
-	case errors.Is(err, ErrTableEmpty):
-		return TableEmpty
+	case errors.Is(err, ErrEmptyTable):
+		return EmptyTable
 	case errors.Is(err, ErrResourceExistAlready):
 		return ResourceExistAlready
 	case errors.Is(err, ErrInvalidParam):
