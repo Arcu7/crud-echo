@@ -12,27 +12,6 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-// Helper function to create test book data
-func createTestBook(id int, title string, description string, qty int) *models.Books {
-	return &models.Books{
-		ID:          id,
-		Title:       title,
-		Description: description,
-		Qty:         qty,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-}
-
-// Helper function to create test book list
-func createTestBookList(books ...*models.Books) *models.BooksList {
-	list := make(models.BooksList, len(books))
-	for i, book := range books {
-		list[i] = *book
-	}
-	return &list
-}
-
 func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -68,9 +47,13 @@ func TestCreate(t *testing.T) {
 		errType     error
 	}{
 		{
-			name:        "Success create book with valid data",
-			bookRequest: createTestBook(0, "Test Title", "Test Description", 10),
-			expectedID:  1,
+			name: "Success create book with valid data",
+			bookRequest: &models.Books{
+				Title:       "Test Title",
+				Description: "Test Description",
+				Qty:         10,
+			},
+			expectedID: 1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(`INSERT INTO "books" (.+) VALUES (.+)`).
@@ -82,8 +65,12 @@ func TestCreate(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:        "Database error during create",
-			bookRequest: createTestBook(0, "Test Title", "Test Description", 10),
+			name: "Database error during create",
+			bookRequest: &models.Books{
+				Title:       "Test Title",
+				Description: "Test Description",
+				Qty:         10,
+			},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectQuery(`INSERT INTO "books" (.+) VALUES (.+)`).
@@ -113,6 +100,7 @@ func TestCreate(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 				assert.Equal(t, tt.expectedID, tt.bookRequest.ID)
+				assert.NotEmpty(t, tt.bookRequest.CreatedAt)
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -133,10 +121,15 @@ func TestGetByID(t *testing.T) {
 		errType      error
 	}{
 		{
-			name:         "Success get book by ID",
-			bookRequest:  &models.Books{},
-			id:           1,
-			expectedBook: createTestBook(1, "Test Title", "Test Description", 10),
+			name:        "Success get book by ID",
+			bookRequest: &models.Books{},
+			expectedBook: &models.Books{
+				ID:          1,
+				Title:       "Test Title",
+				Description: "Test Description",
+				Qty:         10,
+			},
+			id: 1,
 			mock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "title", "description", "qty", "created_at", "updated_at"}).
 					AddRow(1, "Test Title", "Test Description", 10, time.Now(), time.Now())
@@ -156,7 +149,7 @@ func TestGetByID(t *testing.T) {
 					WillReturnError(gorm.ErrRecordNotFound)
 			},
 			wantErr: true,
-			errType: gorm.ErrRecordNotFound,
+			errType: models.ErrNotFound,
 		},
 		{
 			name:        "Database error during get",
@@ -204,19 +197,29 @@ func TestGetByID(t *testing.T) {
 func TestGetAll(t *testing.T) {
 	tests := []struct {
 		name          string
-		books         *models.BooksList
-		expectedBooks *models.BooksList
+		books         *[]models.Books
+		expectedBooks *[]models.Books
 		mock          func(mock sqlmock.Sqlmock)
 		wantErr       bool
 		errType       error
 	}{
 		{
 			name:  "Success get all books",
-			books: &models.BooksList{},
-			expectedBooks: createTestBookList(
-				createTestBook(1, "Test Title 1", "Test Description 1", 10),
-				createTestBook(2, "Test Title 2", "Test Description 2", 20),
-			),
+			books: &[]models.Books{},
+			expectedBooks: &[]models.Books{
+				{
+					ID:          1,
+					Title:       "Test Title 1",
+					Description: "Test Description 1",
+					Qty:         10,
+				},
+				{
+					ID:          2,
+					Title:       "Test Title 2",
+					Description: "Test Description 2",
+					Qty:         20,
+				},
+			},
 			mock: func(mock sqlmock.Sqlmock) {
 				rows := sqlmock.NewRows([]string{"id", "title", "description", "qty", "created_at", "updated_at"}).
 					AddRow(1, "Test Title 1", "Test Description 1", 10, time.Now(), time.Now()).
@@ -228,17 +231,17 @@ func TestGetAll(t *testing.T) {
 		},
 		{
 			name:  "No books found in database",
-			books: &models.BooksList{},
+			books: &[]models.Books{},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT \* FROM "books"`).
-					WillReturnError(gorm.ErrRecordNotFound)
+					WillReturnRows(sqlmock.NewRows([]string{"id", "title", "description", "qty", "created_at", "updated_at"}))
 			},
 			wantErr: true,
-			errType: gorm.ErrRecordNotFound,
+			errType: models.ErrEmptyTable,
 		},
 		{
 			name:  "Database error during get all",
-			books: &models.BooksList{},
+			books: &[]models.Books{},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectQuery(`SELECT \* FROM "books"`).
 					WillReturnError(gorm.ErrInvalidDB)
@@ -283,17 +286,22 @@ func TestGetAll(t *testing.T) {
 
 func TestUpdate(t *testing.T) {
 	tests := []struct {
-		name    string
-		book    *models.Books
+		name string
+		book *models.Books
+		// expectedRowsAffected int64
 		mock    func(mock sqlmock.Sqlmock)
 		wantErr bool
 		errType error
-		// expectedBook *models.Books
 	}{
 		{
 			name: "Success update book with valid data",
-			book: createTestBook(1, "Updated Title", "Updated Description", 15),
-			// expectedBook: createTestBook(1, "Updated Title", "Updated Description", 15),
+			book: &models.Books{
+				ID:          1,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			// expectedRowsAffected: 1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`UPDATE "books" SET "title"=\$1,"description"=\$2,"qty"=\$3,"updated_at"=\$4 WHERE "id" = \$5`).
@@ -305,23 +313,36 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name: "Book not found during update",
-			book: createTestBook(999, "Updated Title", "Updated Description", 15),
+			book: &models.Books{
+				ID:          99,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			// expectedRowsAffected: 1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`UPDATE "books" SET "title"=\$1,"description"=\$2,"qty"=\$3,"updated_at"=\$4 WHERE "id" = \$5`).
-					WithArgs("Updated Title", "Updated Description", 15, sqlmock.AnyArg(), 999).
-					WillReturnResult(sqlmock.NewResult(0, 0))
+					WithArgs("Updated Title", "Updated Description", 15, sqlmock.AnyArg(), 99).
+					WillReturnResult(sqlmock.NewResult(99, 0))
 				mock.ExpectCommit()
 			},
 			wantErr: true,
-			errType: gorm.ErrRecordNotFound,
+			errType: models.ErrNotFound,
 		},
 		{
 			name: "Database error during update",
-			book: createTestBook(1, "Updated Title", "Updated Description", 15),
+			book: &models.Books{
+				ID:          1,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			// expectedRowsAffected: 1,
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`UPDATE "books" SET "title"=\$1,"description"=\$2,"qty"=\$3,"updated_at"=\$4 WHERE "id" = \$5`).
+					WithArgs("Updated Title", "Updated Description", 15, sqlmock.AnyArg(), 1).
 					WillReturnError(gorm.ErrInvalidDB)
 				mock.ExpectRollback()
 			},
@@ -332,7 +353,6 @@ func TestUpdate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var expectedBook models.Books
 			gdb, mock, cleanup := setupTestDB(t)
 			defer cleanup()
 
@@ -347,10 +367,7 @@ func TestUpdate(t *testing.T) {
 				assert.Equal(t, tt.errType, err)
 			} else {
 				assert.NoError(t, err)
-				// assert.Equal(t, tt.expectedBook.ID, tt.book.ID)
-				// assert.Equal(t, tt.expectedBook.Title, tt.book.Title)
-				// assert.Equal(t, tt.expectedBook.Description, tt.book.Description)
-				// assert.Equal(t, tt.expectedBook.Qty, tt.book.Qty)
+				// assert.Equal(t, tt.expectedRowsAffected, int64(1))
 			}
 
 			if err := mock.ExpectationsWereMet(); err != nil {
@@ -370,7 +387,9 @@ func TestDelete(t *testing.T) {
 	}{
 		{
 			name: "Success delete existing book",
-			book: createTestBook(1, "Test Title", "Test Description", 10),
+			book: &models.Books{
+				ID: 1,
+			},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`DELETE FROM "books" WHERE "books"."id" = \$1`).
@@ -382,23 +401,28 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			name: "Book not found during delete",
-			book: createTestBook(999, "Test Title", "Test Description", 10),
+			book: &models.Books{
+				ID: 99,
+			},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`DELETE FROM "books" WHERE "books"."id" = \$1`).
-					WithArgs(999).
-					WillReturnError(gorm.ErrRecordNotFound)
-				mock.ExpectRollback()
+					WithArgs(99).
+					WillReturnResult(sqlmock.NewResult(99, 0))
+				mock.ExpectCommit()
 			},
 			wantErr: true,
-			errType: gorm.ErrRecordNotFound,
+			errType: models.ErrNotFound,
 		},
 		{
 			name: "Database error during delete",
-			book: createTestBook(1, "Test Title", "Test Description", 10),
+			book: &models.Books{
+				ID: 1,
+			},
 			mock: func(mock sqlmock.Sqlmock) {
 				mock.ExpectBegin()
 				mock.ExpectExec(`DELETE FROM "books" WHERE "books"."id" = \$1`).
+					WithArgs(1).
 					WillReturnError(gorm.ErrInvalidDB)
 				mock.ExpectRollback()
 			},
