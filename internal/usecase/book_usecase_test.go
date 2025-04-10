@@ -241,10 +241,9 @@ func TestGetAllBooks(t *testing.T) {
 			name:         "Failed get all books because of invalid parameter",
 			booksRequest: &[]models.Books{},
 			available:    false,
-			mock: func(mock *mock.MockusecaseBooksRepository) {
-			},
-			wantErr: true,
-			errType: fmt.Errorf("invalid parameter"),
+			mock:         func(mock *mock.MockusecaseBooksRepository) {},
+			wantErr:      true,
+			errType:      fmt.Errorf("invalid parameter"),
 		},
 		{
 			name:         "Failed get all books because no books found in database",
@@ -252,10 +251,10 @@ func TestGetAllBooks(t *testing.T) {
 			available:    true,
 			mock: func(mock *mock.MockusecaseBooksRepository) {
 				var arg []models.Books
-				mock.EXPECT().GetAll(&arg).Return(gorm.ErrRecordNotFound)
+				mock.EXPECT().GetAll(&arg).Return(models.ErrNotFound)
 			},
 			wantErr: true,
-			errType: fmt.Errorf("repository error: %w", gorm.ErrRecordNotFound),
+			errType: fmt.Errorf("repository error: %w", models.ErrNotFound),
 		},
 		{
 			name:         "Failed get all books because of database error",
@@ -297,40 +296,150 @@ func TestGetAllBooks(t *testing.T) {
 	}
 }
 
-// func TestUpdateBook(t *testing.T) {
-// 	tests := []struct {
-// 		name         string
-// 		bookRequest  *models.Books
-// 		expectedBook *models.BooksSummary
-// 		mock         func(mock *mock.MockusecaseBooksRepository)
-// 		wantErr      bool
-// 		errType      error
-// 	}{
-// 		{
-// 			name: "Success update book with ID of 1",
-// 			bookRequest: &models.Books{
-// 				ID:          1,
-// 				Title:       "Updated Title",
-// 				Description: "Updated Description",
-// 				Qty:         15,
-// 			},
-// 			expectedBook: &models.BooksSummary{
-// 				ID:          1,
-// 				Title:       "Updated Title",
-// 				Description: "Updated Description",
-// 				Qty:         15,
-// 			},
-// 			mock: func(mock *mock.MockusecaseBooksRepository) {
-// 				mock.EXPECT().Update(&models.Books{
-// 					ID:          1,
-// 					Title:       "Updated Title",
-// 					Description: "Updated Description",
-// 					Qty:         15,
-// 				}).Return(nil)
-// 			},
-// 		},
-// 	}
-// }
+func TestUpdateBook(t *testing.T) {
+	tests := []struct {
+		name        string
+		bookRequest *models.UpdateBooksRequest
+		mock        func(mock *mock.MockusecaseBooksRepository)
+		wantErr     bool
+		errType     error
+	}{
+		{
+			name: "Success update book with ID of 1",
+			bookRequest: &models.UpdateBooksRequest{
+				ID:          1,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID:          1,
+					Title:       "Updated Title",
+					Description: "Updated Description",
+					Qty:         15,
+				}).Return(nil)
+			},
+		},
+		{
+			name: "Failed update book due to book not found",
+			bookRequest: &models.UpdateBooksRequest{
+				ID:          1,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID:          1,
+					Title:       "Updated Title",
+					Description: "Updated Description",
+					Qty:         15,
+				}).Return(models.ErrNotFound)
+			},
+			wantErr: true,
+			errType: fmt.Errorf("repository error: %w", models.ErrNotFound),
+		},
+		{
+			name: "Failed update book due to invalid DB",
+			bookRequest: &models.UpdateBooksRequest{
+				ID:          1,
+				Title:       "Updated Title",
+				Description: "Updated Description",
+				Qty:         15,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID:          1,
+					Title:       "Updated Title",
+					Description: "Updated Description",
+					Qty:         15,
+				}).Return(gorm.ErrInvalidDB)
+			},
+			wantErr: true,
+			errType: fmt.Errorf("repository error: %w", gorm.ErrInvalidDB),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := mock.NewMockusecaseBooksRepository(t)
+			tt.mock(mock)
 
-// func TestDeleteBook(t *testing.T) {
-// }
+			uc := NewBooksUseCase(mock)
+
+			err := uc.UpdateBook(tt.bookRequest)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errType, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestDeleteBook(t *testing.T) {
+	tests := []struct {
+		name        string
+		bookRequest *models.DeleteBooksRequest
+		mock        func(mock *mock.MockusecaseBooksRepository)
+		wantErr     bool
+		errType     error
+	}{
+		{
+			name: "Success update book with ID of 1",
+			bookRequest: &models.DeleteBooksRequest{
+				ID: 1,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID: 1,
+				}).Return(nil)
+			},
+		},
+		{
+			name: "Failed update book due to book not found",
+			bookRequest: &models.DeleteBooksRequest{
+				ID: 99,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID: 99,
+				}).Return(models.ErrNotFound)
+			},
+			wantErr: true,
+			errType: fmt.Errorf("repository error: %w", models.ErrNotFound),
+		},
+		{
+			name: "Failed update book due to invalid DB",
+			bookRequest: &models.DeleteBooksRequest{
+				ID: 1,
+			},
+			mock: func(mock *mock.MockusecaseBooksRepository) {
+				mock.EXPECT().Update(&models.Books{
+					ID: 1,
+				}).Return(gorm.ErrInvalidDB)
+			},
+			wantErr: true,
+			errType: fmt.Errorf("repository error: %w", gorm.ErrInvalidDB),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mock := mock.NewMockusecaseBooksRepository(t)
+			tt.mock(mock)
+
+			uc := NewBooksUseCase(mock)
+
+			err := uc.DeleteBook(tt.bookRequest)
+
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Equal(t, tt.errType, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
