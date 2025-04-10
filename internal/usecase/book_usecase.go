@@ -22,8 +22,8 @@ func NewBooksUseCase(repo usecaseBooksRepository) *BooksUseCase {
 	return &BooksUseCase{bookRepo: repo}
 }
 
-func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.Books, error) {
-	exists, err := uc.bookRepo.ExistsByTitle(request.Title)
+func (uc *BooksUseCase) CreateBook(bookRequest *models.CreateBooksRequest) (*models.Books, error) {
+	exists, err := uc.bookRepo.ExistsByTitle(bookRequest.Title)
 	if err != nil {
 		return nil, fmt.Errorf("repository error: %w", err)
 	}
@@ -32,9 +32,9 @@ func (uc *BooksUseCase) CreateBook(request *models.CreateBooksRequest) (*models.
 	}
 
 	bookData := &models.Books{
-		Title:       request.Title,
-		Description: request.Description,
-		Qty:         request.Qty,
+		Title:       bookRequest.Title,
+		Description: bookRequest.Description,
+		Qty:         bookRequest.Qty,
 	}
 
 	if err := uc.bookRepo.Create(bookData); err != nil {
@@ -69,12 +69,12 @@ func (uc *BooksUseCase) GetAllBooks(available bool) (*[]models.BooksSummary, err
 	return &booksList, nil
 }
 
-func (uc *BooksUseCase) UpdateBook(book *models.UpdateBooksRequest) error {
+func (uc *BooksUseCase) UpdateBook(bookRequest *models.UpdateBooksRequest) error {
 	bookData := &models.Books{
-		ID:          book.ID,
-		Title:       book.Title,
-		Description: book.Description,
-		Qty:         book.Qty,
+		ID:          bookRequest.ID,
+		Title:       bookRequest.Title,
+		Description: bookRequest.Description,
+		Qty:         bookRequest.Qty,
 	}
 
 	if err := uc.bookRepo.Update(bookData); err != nil {
@@ -84,9 +84,9 @@ func (uc *BooksUseCase) UpdateBook(book *models.UpdateBooksRequest) error {
 	return nil
 }
 
-func (uc *BooksUseCase) DeleteBook(book *models.DeleteBooksRequest) error {
+func (uc *BooksUseCase) DeleteBook(bookRequest *models.DeleteBooksRequest) error {
 	bookData := &models.Books{
-		ID: book.ID,
+		ID: bookRequest.ID,
 	}
 
 	if err := uc.bookRepo.Delete(bookData); err != nil {
