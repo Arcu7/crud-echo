@@ -27,11 +27,13 @@ var (
 
 func GetErrorHTTPStatusCode(err error) int {
 	switch {
+	case errors.Is(err, ErrEmptyTable):
+		return 200
 	case errors.Is(err, ErrInternalServerError):
 		return 500
 	case errors.Is(err, ErrBadRequest), errors.Is(err, ErrInvalidParam):
 		return 400
-	case errors.Is(err, ErrNotFound), errors.Is(err, ErrEmptyTable):
+	case errors.Is(err, ErrNotFound):
 		return 404
 	case errors.Is(err, ErrResourceExistAlready):
 		return 409
