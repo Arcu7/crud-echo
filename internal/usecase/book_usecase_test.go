@@ -54,7 +54,7 @@ func TestCreateBook(t *testing.T) {
 				mock.EXPECT().ExistsByTitle("Test Title").Return(true, nil)
 			},
 			wantErr: true,
-			errType: fmt.Errorf("repository error: %w", models.ErrResourceExistAlready),
+			errType: fmt.Errorf("repository error: %w", models.ErrResourceAlreadyExist),
 		},
 		{
 			name: "Failed create book due to invalid DB",

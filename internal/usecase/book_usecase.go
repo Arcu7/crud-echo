@@ -28,7 +28,7 @@ func (uc *BooksUseCase) CreateBook(bookRequest *models.CreateBooksRequest) (*mod
 		return nil, fmt.Errorf("repository error: %w", err)
 	}
 	if exists {
-		return nil, fmt.Errorf("repository error: %w", models.ErrResourceExistAlready)
+		return nil, fmt.Errorf("repository error: %w", models.ErrResourceAlreadyExist)
 	}
 
 	bookData := &models.Books{

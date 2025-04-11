@@ -9,7 +9,7 @@ const (
 	BadRequest           = "bad request"
 	NotFound             = "record not found"
 	EmptyTable           = "table is empty"
-	ResourceExistAlready = "resource already exists"
+	ResourceAlreadyExist = "resource already exist"
 	InvalidParam         = "invalid parameter"
 	ValidationError      = "validation error"
 )
@@ -20,7 +20,7 @@ var (
 	ErrNotFound             = errors.New("record not found")
 	ErrRecordNotCreated     = errors.New("record not created")
 	ErrEmptyTable           = errors.New("table is empty")
-	ErrResourceExistAlready = errors.New("resource already exists")
+	ErrResourceAlreadyExist = errors.New("resource already exist")
 	ErrInvalidParam         = errors.New("invalid parameter")
 	ErrValidationError      = errors.New("validation error")
 )
@@ -35,7 +35,7 @@ func GetErrorHTTPStatusCode(err error) int {
 		return 400
 	case errors.Is(err, ErrNotFound):
 		return 404
-	case errors.Is(err, ErrResourceExistAlready):
+	case errors.Is(err, ErrResourceAlreadyExist):
 		return 409
 	case errors.Is(err, ErrValidationError):
 		return 422
@@ -55,8 +55,8 @@ func GetErrorHTTPStatusMessage(err error) string {
 		return NotFound
 	case errors.Is(err, ErrEmptyTable):
 		return EmptyTable
-	case errors.Is(err, ErrResourceExistAlready):
-		return ResourceExistAlready
+	case errors.Is(err, ErrResourceAlreadyExist):
+		return ResourceAlreadyExist
 	case errors.Is(err, ErrInvalidParam):
 		return InvalidParam
 	case errors.Is(err, ErrValidationError):
@@ -65,12 +65,3 @@ func GetErrorHTTPStatusMessage(err error) string {
 		return InternalServerError
 	}
 }
-
-// type ValidationError struct {
-// 	Message string
-// 	Errors  map[string]string
-// }
-//
-// func (e *ValidationError) Error() string {
-// 	return e.Message
-// }
