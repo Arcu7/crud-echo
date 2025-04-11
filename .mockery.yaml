@@ -9,4 +9,14 @@ packages:
         # Modify package-level config for this specific interface (if applicable)
         config:
           dir: "internal/mock"
-          outpkg: "mock"
+          outpkg: "mocks"
+  crud-echo/internal/inbound/handlers:
+    # place your package-specific config here
+    config:
+    interfaces:
+      # select the interfaces you want mocked
+      handlerBookUsecase:
+        # Modify package-level config for this specific interface (if applicable)
+        config:
+          dir: "internal/mock"
+          outpkg: "mocks"
