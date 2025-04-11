@@ -20,14 +20,14 @@ type CreateBooksRequest struct {
 }
 
 type UpdateBooksRequest struct {
-	ID          int    `json:"id" validate:"required"`
+	ID          int    `json:"id" validate:"required,gte=1"`
 	Title       string `json:"title" validate:"required,min=3,max=50"`
 	Description string `json:"description" validate:"required,min=3,max=255"`
 	Qty         int    `json:"qty" validate:"required,gte=0,lte=100"`
 }
 
 type DeleteBooksRequest struct {
-	ID int `json:"id" validate:"required"`
+	ID int `json:"id" validate:"required,gte=1"`
 }
 
 type BooksSummary struct {
