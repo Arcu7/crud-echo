@@ -3,7 +3,6 @@ package handlers
 import (
 	"crud-echo/internal/inbound/customvalidator"
 	"crud-echo/internal/models"
-	uc "crud-echo/internal/usecase"
 	"log"
 	"net/http"
 	"strconv"
@@ -11,12 +10,20 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+type handlerBookUsecase interface {
+	CreateBook(book *models.CreateBooksRequest) (*models.Books, error)
+	GetBookByID(id int) (*models.BooksSummary, error)
+	GetAllBooks(available bool) (*[]models.BooksSummary, error)
+	UpdateBook(book *models.UpdateBooksRequest) error
+	DeleteBook(book *models.DeleteBooksRequest) error
+}
+
 type BooksHandler struct {
-	buc *uc.BooksUseCase
+	buc handlerBookUsecase
 	cv  *customvalidator.CustomValidator
 }
 
-func NewBooksHandler(buc *uc.BooksUseCase, validator *customvalidator.CustomValidator) *BooksHandler {
+func NewBooksHandler(buc handlerBookUsecase, validator *customvalidator.CustomValidator) *BooksHandler {
 	return &BooksHandler{buc: buc, cv: validator}
 }
 
