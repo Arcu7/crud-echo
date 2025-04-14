@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-type usecaseBooksRepository interface {
+type UsecaseBooksRepository interface {
 	Create(book *models.Books) error
 	GetByID(book *models.Books, id int) error
 	GetAll(book *[]models.Books) error
@@ -15,10 +15,10 @@ type usecaseBooksRepository interface {
 }
 
 type BooksUseCase struct {
-	bookRepo usecaseBooksRepository
+	bookRepo UsecaseBooksRepository
 }
 
-func NewBooksUseCase(repo usecaseBooksRepository) *BooksUseCase {
+func NewBooksUseCase(repo UsecaseBooksRepository) *BooksUseCase {
 	return &BooksUseCase{bookRepo: repo}
 }
 
