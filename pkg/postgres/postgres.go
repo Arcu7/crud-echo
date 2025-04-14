@@ -14,10 +14,10 @@ type PostgresDB struct {
 	DB *gorm.DB
 }
 
-func NewPostgresDB(cfg *config.Config) (*PostgresDB, error) {
+func NewDB(cfg *config.Config) (*PostgresDB, error) {
 	dsn := "user=rif password=angelcf511 dbname=project_1 port=5432 sslmode=disable TimeZone=Asia/Shanghai"
 	dsn = fmt.Sprintf("user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
-		// don't know why, but this will only work if the host is not specified
+		// NOTE: don't know why, but this will only work if the host is not specified
 		// cfg.Database.Host,
 		cfg.Database.User,
 		cfg.Database.Password,
@@ -43,6 +43,10 @@ func NewPostgresDB(cfg *config.Config) (*PostgresDB, error) {
 	return psqldb, nil
 }
 
-func (psqldb PostgresDB) Migrate() error {
+func (psqldb *PostgresDB) Migrate() error {
 	return psqldb.DB.AutoMigrate(&models.Books{})
+}
+
+func (psqldb *PostgresDB) GetDB() *gorm.DB {
+	return psqldb.DB
 }

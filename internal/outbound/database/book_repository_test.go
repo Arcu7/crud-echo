@@ -2,6 +2,7 @@ package database
 
 import (
 	"crud-echo/internal/models"
+	psgr "crud-echo/pkg/postgres"
 	"testing"
 	"time"
 
@@ -12,7 +13,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
-func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
+func setupTestDB(t *testing.T) (*psgr.PostgresDB, sqlmock.Sqlmock, func()) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("Failed to create mock database: %v", err)
@@ -30,11 +31,15 @@ func setupTestDB(t *testing.T) (*gorm.DB, sqlmock.Sqlmock, func()) {
 		t.Fatalf("Failed to open GORM DB: %v", err)
 	}
 
+	psqlgdb := &psgr.PostgresDB{
+		DB: gdb,
+	}
+
 	cleanup := func() {
 		db.Close()
 	}
 
-	return gdb, mock, cleanup
+	return psqlgdb, mock, cleanup
 }
 
 func TestCreate(t *testing.T) {
