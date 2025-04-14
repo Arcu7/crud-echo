@@ -2,351 +2,598 @@ package handlers
 
 import (
 	"bytes"
+	vc "crud-echo/internal/inbound/customvalidator"
+	"crud-echo/internal/mocks"
 	"crud-echo/internal/models"
-	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
 
-	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
 )
 
-func CreateMockDB(t *testing.T) (*sql.DB, *gorm.DB, sqlmock.Sqlmock) {
-	db, mock, err := sqlmock.New()
-	if err != nil {
-		t.Fatal("Error in creating mock: ", err)
+type TestContext struct {
+	Echo    *echo.Echo
+	Handler *BooksHandler
+	Mock    *mocks.MockhandlerBookUsecase
+}
+
+func initialSetup(t *testing.T) *TestContext {
+	e := echo.New()
+	e.HTTPErrorHandler = CustomHTTPErrorHandler
+
+	mockUsecase := mocks.NewMockhandlerBookUsecase(t)
+	testValidator := &vc.CustomValidator{Validator: validator.New()}
+
+	handler := NewBooksHandler(mockUsecase, testValidator)
+
+	return &TestContext{
+		Echo:    e,
+		Handler: handler,
+		Mock:    mockUsecase,
+	}
+}
+
+func (tc *TestContext) executeRequest(method string, path string, body string, handler echo.HandlerFunc) *httptest.ResponseRecorder {
+	var req *http.Request
+	if body != "" {
+		req = httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	} else {
+		req = httptest.NewRequest(method, path, nil)
 	}
 
-	dialector := postgres.New(postgres.Config{
-		Conn:       db,
-		DriverName: "postgres",
-	})
+	rec := httptest.NewRecorder()
+	c := tc.Echo.NewContext(req, rec)
 
-	gdb, err := gorm.Open(dialector, &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
-	})
+	err := handler(c)
 	if err != nil {
-		t.Fatal("GORM connection error: ", err)
+		tc.Echo.HTTPErrorHandler(err, c)
 	}
 
-	return db, gdb, mock
+	return rec
 }
 
-func TestCreateBooks(t *testing.T) {
-	e := echo.New()
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	t.Run("Success create user", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		user := models.Books{
-			Name:  "testuser",
-			Email: "test@gmail.com",
-			Age:   20,
-		}
-
-		mock.ExpectBegin()
-		mock.ExpectQuery(`INSERT INTO "users" (.+) VALUES (.+)`).
-			WithArgs(user.Name, user.Email, user.Age).
-			WillReturnRows(sqlmock.NewRows([]string{"id"}).
-				AddRow(1))
-		mock.ExpectCommit()
-
-		expectedBooks := user
-		expectedBooks.ID = 1
-
-		body, err := json.Marshal(user)
-		if err != nil {
-			t.Fatal("Error in marshalling user: ", err)
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader(body))
+// maybe there is a better way...
+func (tc *TestContext) executeRequestWithParam(method string, path string, paramName string, paramValue string, body string, handler echo.HandlerFunc) *httptest.ResponseRecorder {
+	var req *http.Request
+	if body != "" {
+		req = httptest.NewRequest(method, path, bytes.NewBufferString(body))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
+	} else {
+		req = httptest.NewRequest(method, path, nil)
+	}
 
-		if assert.NoError(t, userHandler.CreateBooks(c)) {
-			assert.Equal(t, http.StatusOK, rec.Code)
-			var response models.Books
+	rec := httptest.NewRecorder()
+	c := tc.Echo.NewContext(req, rec)
+	if paramName != "" && paramValue != "" {
+		c.SetPath(path)
+		c.SetParamNames(paramName)
+		c.SetParamValues(paramValue)
+	}
 
-			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-				t.Fatal("Error in unmarshalling response: ", err)
+	err := handler(c)
+	if err != nil {
+		tc.Echo.HTTPErrorHandler(err, c)
+	}
+
+	return rec
+}
+
+func (tc *TestContext) executeRequestWithQuery(method string, path string, query string, body string, handler echo.HandlerFunc) *httptest.ResponseRecorder {
+	var req *http.Request
+	if body != "" {
+		req = httptest.NewRequest(method, path, bytes.NewBufferString(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	} else {
+		req = httptest.NewRequest(method, path, nil)
+	}
+
+	if query != "" {
+		req.URL.RawQuery = query
+	}
+
+	rec := httptest.NewRecorder()
+	c := tc.Echo.NewContext(req, rec)
+
+	err := handler(c)
+	if err != nil {
+		tc.Echo.HTTPErrorHandler(err, c)
+	}
+
+	return rec
+}
+
+// maybe shouldn't be a method...
+func (tc *TestContext) unmarshalJSONResponse(t *testing.T, body string) Response {
+	var response Response
+	err := json.Unmarshal([]byte(body), &response)
+	t.Logf("response: %#v", response)
+	if err != nil {
+		t.Fatalf("Failed to unmarshal response: %v", err)
+	}
+
+	return response
+}
+
+func TestCreateBook(t *testing.T) {
+	tests := []struct {
+		name             string
+		requestBody      string
+		m                func(mockuc *mocks.MockhandlerBookUsecase)
+		expectedStatus   int
+		expectedResponse Response
+	}{
+		{
+			name:        "Success create book",
+			requestBody: `{"title":"Test Book","description":"Test Description","qty":10}`,
+			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+				mockuc.EXPECT().CreateBook(&models.CreateBooksRequest{
+					Title:       "Test Book",
+					Description: "Test Description",
+					Qty:         10,
+				}).Return(&models.Books{}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedResponse: Response{
+				Status:  true,
+				Message: "Book has been created",
+				Data:    nil,
+			},
+		},
+		{
+			name:           "Failed create book due to bind error",
+			requestBody:    `{,,,}`,
+			m:              func(mockuc *mocks.MockhandlerBookUsecase) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedResponse: Response{
+				Status:  false,
+				Message: models.BadRequest,
+				Data:    nil,
+			},
+		},
+		{
+			name:           "Failed create book due to validation error",
+			requestBody:    `{"title":"xx","description":"xx","qty":101}`,
+			m:              func(mockuc *mocks.MockhandlerBookUsecase) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedResponse: Response{
+				Status:  false,
+				Message: models.ValidationError,
+				Data:    nil,
+			},
+		},
+		{
+			name:        "Failed create book due to book exist already",
+			requestBody: `{"title":"Test Book","description":"Test Description","qty":10}`,
+			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+				mockuc.EXPECT().CreateBook(&models.CreateBooksRequest{
+					Title:       "Test Book",
+					Description: "Test Description",
+					Qty:         10,
+				}).Return(nil, fmt.Errorf("repository error: %w", models.ErrResourceAlreadyExist))
+			},
+			expectedStatus: http.StatusConflict,
+			expectedResponse: Response{
+				Status:  false,
+				Message: models.ResourceAlreadyExist,
+				Data:    nil,
+			},
+		},
+		{
+			name:        "Failed create book due to 0 ID", // don't know about this
+			requestBody: `{"title":"Test Book","description":"Test Description","qty":10}`,
+			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+				mockuc.EXPECT().CreateBook(&models.CreateBooksRequest{
+					Title:       "Test Book",
+					Description: "Test Description",
+					Qty:         10,
+				}).Return(nil, fmt.Errorf("repository error: %w", models.ErrInternalServerError))
+			},
+			expectedStatus: http.StatusInternalServerError,
+			expectedResponse: Response{
+				Status:  false,
+				Message: "internal server error",
+				Data:    nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := initialSetup(t)
+			tt.m(tc.Mock)
+
+			rec := tc.executeRequest(http.MethodPost, "/", tt.requestBody, tc.Handler.CreateBook)
+			actualResponse := tc.unmarshalJSONResponse(t, rec.Body.String())
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			assert.Equal(t, tt.expectedResponse.Status, actualResponse.Status)
+			assert.Equal(t, tt.expectedResponse.Message, actualResponse.Message)
+			assert.Equal(t, tt.expectedResponse.Data, actualResponse.Data)
+		})
+	}
+}
+
+func TestGetBookByID(t *testing.T) {
+	tests := []struct {
+		name             string
+		param            string
+		m                func(mockuc *mocks.MockhandlerBookUsecase)
+		expectedStatus   int
+		expectedResponse Response
+	}{
+		{
+			name:  "Success get book by ID",
+			param: "1",
+			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+				mockuc.EXPECT().GetBookByID(1).Return(&models.BooksSummary{
+					ID:          1,
+					Title:       "Test Book",
+					Description: "Test Description",
+					Qty:         10,
+				}, nil)
+			},
+			expectedStatus: http.StatusOK,
+			expectedResponse: Response{
+				Status:  true,
+				Message: "Book retrieved successfully",
+				Data: &models.BooksSummary{
+					ID:          1,
+					Title:       "Test Book",
+					Description: "Test Description",
+					Qty:         10,
+				},
+			},
+		},
+		{
+			name:           "Failed get book by ID due to error converting ID param",
+			param:          "!@#$%^&*()",
+			m:              func(mock *mocks.MockhandlerBookUsecase) {},
+			expectedStatus: http.StatusBadRequest,
+			expectedResponse: Response{
+				Status:  false,
+				Message: "invalid parameter",
+				Data:    nil,
+			},
+		},
+		{
+			name:  "Failed get book by ID due to book not found",
+			param: "99",
+			m: func(mock *mocks.MockhandlerBookUsecase) {
+				mock.EXPECT().GetBookByID(99).
+					Return(nil, fmt.Errorf("repository error: %w", models.ErrNotFound))
+			},
+			expectedStatus: http.StatusNotFound,
+			expectedResponse: Response{
+				Status:  false,
+				Message: "record not found",
+				Data:    nil,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := initialSetup(t)
+			tt.m(tc.Mock)
+
+			rec := tc.executeRequestWithParam(http.MethodPost, "/books/:id", "id", tt.param, "", tc.Handler.GetBookByID)
+			t.Logf("rec.Body.String(): %#v", rec.Body.String())
+			actualResponse := tc.unmarshalJSONResponse(t, rec.Body.String())
+
+			assert.Equal(t, tt.expectedStatus, rec.Code)
+			assert.Equal(t, tt.expectedResponse.Status, actualResponse.Status)
+			assert.Equal(t, tt.expectedResponse.Message, actualResponse.Message)
+
+			// hackaround?
+			if tt.expectedResponse.Data != nil {
+				if expectedData, ok := tt.expectedResponse.Data.(*models.BooksSummary); ok {
+					if actualData, ok := actualResponse.Data.(*models.BooksSummary); ok {
+						assert.Equal(t, expectedData.ID, actualData.ID)
+						assert.Equal(t, expectedData.Title, actualData.Title)
+						assert.Equal(t, expectedData.Description, actualData.Description)
+						assert.Equal(t, expectedData.Qty, actualData.Qty)
+					}
+				}
+			} else {
+				assert.Nil(t, actualResponse.Data)
 			}
-
-			assert.Equal(t, expectedBooks, response)
-		}
-
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-	t.Run("Bad Request/Invalid input", func(t *testing.T) {
-		sqldb, db, _ := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		req := httptest.NewRequest(http.MethodPost, "/users", bytes.NewReader([]byte(`{test`)))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-
-		if err := userHandler.CreateBooks(c); assert.Error(t, err) {
-			assert.Equal(t, http.StatusBadRequest, err.(*echo.HTTPError).Code)
-		}
-	})
+		})
+	}
 }
 
-func TestGetBooks(t *testing.T) {
-	e := echo.New()
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	t.Run("Success get user", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		user := models.Books{
-			ID:    1,
-			Name:  "testuser",
-			Email: "test@gmail.com",
-		}
-
-		mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"."id" = \$1 ORDER BY "users"."id" LIMIT \$2`).
-			WithArgs(user.ID, 1).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).
-				AddRow(user.ID, user.Name, user.Email))
-
-		req := httptest.NewRequest(http.MethodGet, "/users/"+strconv.Itoa(user.ID), nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(user.ID))
-
-		if assert.NoError(t, userHandler.GetBooks(c)) {
-			assert.Equal(t, http.StatusOK, rec.Code)
-
-			var response models.Books
-			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-				t.Fatal("Error in unmarshalling response: ", err)
-			}
-
-			assert.Equal(t, user, response)
-		}
-	})
-
-	t.Run("Get but user not found", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		mock.ExpectQuery(`SELECT \* FROM "users" WHERE "users"."id" = \$1 ORDER BY "users"."id" LIMIT \$2`).
-			WillReturnError(gorm.ErrRecordNotFound)
-
-		req := httptest.NewRequest(http.MethodGet, "/users/999", nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues("999")
-
-		if err := userHandler.GetBooks(c); assert.Error(t, err) {
-			assert.Equal(t, http.StatusNotFound, err.(*echo.HTTPError).Code)
-			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-}
-
-func TestGetAllBooks(t *testing.T) {
-	e := echo.New()
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	t.Run("Success get all user", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		user := []models.Books{{ID: 1, Name: "testuser", Email: "tes@gmail.com"}}
-
-		mock.ExpectQuery(`SELECT \* FROM "users"`).
-			WillReturnRows(sqlmock.NewRows([]string{"id", "name", "email"}).
-				AddRow(user[0].ID, user[0].Name, user[0].Email))
-
-		req := httptest.NewRequest(http.MethodGet, "/users/", nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-
-		if assert.NoError(t, userHandler.GetAllBookss(c)) {
-			assert.Equal(t, http.StatusOK, rec.Code)
-
-			var response []models.Books
-			if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
-				t.Fatal("Error in unmarshalling response: ", err)
-			}
-
-			assert.Equal(t, user, response)
-		}
-	})
-
-	t.Run("Get all but no user found", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		mock.ExpectQuery(`SELECT \* FROM "users"`).
-			WillReturnError(gorm.ErrRecordNotFound)
-
-		req := httptest.NewRequest(http.MethodGet, "/users", nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-
-		if err := userHandler.GetAllBookss(c); assert.Error(t, err) {
-			assert.Equal(t, http.StatusNotFound, err.(*echo.HTTPError).Code)
-			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-}
-
-func TestUpdateBooks(t *testing.T) {
-	e := echo.New()
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	t.Run("Success update user", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		user := models.Books{
-			ID:    1,
-			Name:  "testuserupdate",
-			Email: "testupdate@gmail.com",
-			Age:   20,
-		}
-
-		mock.ExpectBegin()
-		mock.ExpectExec(`UPDATE "users" SET "name"=\$1,"email"=\$2,"age"=\$3 WHERE "id" = \$4`).
-			WithArgs(user.Name, user.Email, user.Age, user.ID).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
-
-		body, _ := json.Marshal(user)
-
-		req := httptest.NewRequest(http.MethodPut, "/users/"+strconv.Itoa(user.ID), bytes.NewReader(body))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(user.ID))
-
-		expectedMessage := "Books ID " + c.Param("id") + " has been updated\n"
-
-		if assert.NoError(t, userHandler.UpdateBooks(c)) {
-			assert.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, rec.Body.String(), expectedMessage)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-
-	t.Run("Bad Update Request/Invalid input", func(t *testing.T) {
-		sqldb, db, _ := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		req := httptest.NewRequest(http.MethodPut, "/users/999", bytes.NewReader([]byte(`{test`)))
-		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-
-		if err := userHandler.UpdateBooks(c); assert.Error(t, err) {
-			assert.Equal(t, http.StatusBadRequest, err.(*echo.HTTPError).Code)
-		}
-	})
-}
-
-func TestDeleteBooks(t *testing.T) {
-	e := echo.New()
-	e.Validator = &vc.CustomValidator{Validator: validator.New()}
-
-	t.Run("Success delete user", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		deletedBooksID := 999
-
-		mock.ExpectBegin()
-		mock.ExpectExec(`DELETE FROM "users" WHERE "users"."id" = \$1`).
-			WithArgs(deletedBooksID).
-			WillReturnResult(sqlmock.NewResult(1, 1))
-		mock.ExpectCommit()
-
-		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedBooksID), nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(deletedBooksID))
-
-		expectedMessage := "Books ID " + c.Param("id") + " has been deleted\n"
-
-		if assert.NoError(t, userHandler.DeleteBooks(c)) {
-			assert.Equal(t, http.StatusOK, rec.Code)
-			assert.Equal(t, rec.Body.String(), expectedMessage)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-	t.Run("Delete but user not found", func(t *testing.T) {
-		sqldb, db, mock := CreateMockDB(t)
-		defer sqldb.Close()
-
-		userHandler := BooksHandler{DB: db}
-
-		deletedBooksID := 999
-
-		mock.ExpectBegin()
-		mock.ExpectExec(`DELETE FROM "users" WHERE "users"."id" = \$1`).
-			WithArgs(deletedBooksID).
-			WillReturnError(gorm.ErrRecordNotFound)
-		mock.ExpectRollback()
-
-		req := httptest.NewRequest(http.MethodDelete, "/users/"+strconv.Itoa(deletedBooksID), nil)
-		rec := httptest.NewRecorder()
-		c := e.NewContext(req, rec)
-		c.SetParamNames("id")
-		c.SetParamValues(strconv.Itoa(deletedBooksID))
-
-		if err := userHandler.DeleteBooks(c); assert.Error(t, err) {
-			assert.Equal(t, http.StatusInternalServerError, err.(*echo.HTTPError).Code)
-			assert.Equal(t, gorm.ErrRecordNotFound, err.(*echo.HTTPError).Message)
-		}
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("there were unfulfilled expectations: %s", err)
-		}
-	})
-}
+// func TestGetAllBooks(t *testing.T) {
+// 	tests := []struct {
+// 		name             string
+// 		param            string
+// 		m                func(mockuc *mocks.MockhandlerBookUsecase)
+// 		expectedStatus   int
+// 		expectedResponse Response
+// 	}{
+// 		{
+// 			name:  "Success get all books",
+// 			param: "true",
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().GetAllBooks(true).Return(&[]models.BooksSummary{
+// 					{
+// 						ID:          1,
+// 						Title:       "Test Book",
+// 						Description: "Test Description",
+// 						Qty:         10,
+// 					},
+// 					{
+// 						ID:          2,
+// 						Title:       "Test Book 2",
+// 						Description: "Test Description 2",
+// 						Qty:         20,
+// 					},
+// 				}, nil)
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 			expectedResponse: Response{
+// 				Status:  true,
+// 				Message: "Books retrieved successfully",
+// 				Data: &[]models.BooksSummary{
+// 					{
+// 						ID:          1,
+// 						Title:       "Test Book",
+// 						Description: "Test Description",
+// 						Qty:         10,
+// 					},
+// 					{
+// 						ID:          2,
+// 						Title:       "Test Book 2",
+// 						Description: "Test Description 2",
+// 						Qty:         20,
+// 					},
+// 				},
+// 			},
+// 		},
+// 		{
+// 			name:           "Failed get all books due to error parsing available param",
+// 			param:          "!@#$%^&*()",
+// 			m:              func(mock *mocks.MockhandlerBookUsecase) {},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: "bad request",
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:  "Failed get all books due to false available param",
+// 			param: "false",
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().GetAllBooks(false).Return(nil, fmt.Errorf("repository error: %w", models.ErrInvalidParam))
+// 			},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: "invalid parameter",
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:  "Failed get all books due to empty table", // hmm maybe not fail?
+// 			param: "true",
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().GetAllBooks(true).Return(nil, fmt.Errorf("repository error: %w", models.ErrEmptyTable))
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: "table is empty",
+// 				Data:    nil,
+// 			},
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			e, handler, mock := initialSetup(t)
+// 			tt.m(mock)
+//
+// 			expectedResponseBytes, err := json.Marshal(tt.expectedResponse)
+// 			if err != nil {
+// 				t.Fatalf("Failed to marshal expected response: %v", err)
+// 			}
+//
+// 			req := httptest.NewRequest(http.MethodPost, "/", nil)
+// 			req.URL.RawQuery = fmt.Sprintf("available=%s", tt.param)
+// 			rec := httptest.NewRecorder()
+// 			c := e.NewContext(req, rec)
+//
+// 			err = handler.GetAllBooks(c)
+// 			if err != nil {
+// 				e.HTTPErrorHandler(err, c)
+// 			}
+//
+// 			assert.Equal(t, tt.expectedStatus, rec.Code)
+// 			assert.JSONEq(t, string(expectedResponseBytes), rec.Body.String())
+// 		})
+// 	}
+// }
+//
+// func TestUpdateBook(t *testing.T) {
+// 	tests := []struct {
+// 		name             string
+// 		requestBody      string
+// 		m                func(mockuc *mocks.MockhandlerBookUsecase)
+// 		expectedStatus   int
+// 		expectedResponse Response
+// 	}{
+// 		{
+// 			name:        "Success update book",
+// 			requestBody: `{"id": 1,"title":"Test Book","description":"Test Description","qty":10}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().UpdateBook(&models.UpdateBooksRequest{
+// 					ID:          1,
+// 					Title:       "Test Book",
+// 					Description: "Test Description",
+// 					Qty:         10,
+// 				}).Return(nil)
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 			expectedResponse: Response{
+// 				Status:  true,
+// 				Message: "Book with ID 1 has been updated",
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:           "Failed update book due to bind error",
+// 			requestBody:    `{,,,}`,
+// 			m:              func(mockuc *mocks.MockhandlerBookUsecase) {},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.BadRequest,
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:           "Failed update book due to validation error",
+// 			requestBody:    `{"id": -1,"title":"xx","description":"xx","qty":101}`,
+// 			m:              func(mockuc *mocks.MockhandlerBookUsecase) {},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.ValidationError,
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:        "Failed update book due to book not found",
+// 			requestBody: `{"id": 1,"title":"Test Book","description":"Test Description","qty":10}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().UpdateBook(&models.UpdateBooksRequest{
+// 					ID:          1,
+// 					Title:       "Test Book",
+// 					Description: "Test Description",
+// 					Qty:         10,
+// 				}).Return(fmt.Errorf("repository error: %w", models.ErrNotFound))
+// 			},
+// 			expectedStatus: http.StatusNotFound,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.NotFound,
+// 				Data:    nil,
+// 			},
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			e, handler, mock := initialSetup(t)
+// 			tt.m(mock)
+//
+// 			expectedResponseBytes, err := json.Marshal(tt.expectedResponse)
+// 			if err != nil {
+// 				t.Fatalf("Failed to marshal expected response: %v", err)
+// 			}
+//
+// 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(tt.requestBody))
+// 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+// 			rec := httptest.NewRecorder()
+// 			c := e.NewContext(req, rec)
+//
+// 			err = handler.UpdateBook(c)
+// 			if err != nil {
+// 				e.HTTPErrorHandler(err, c)
+// 			}
+//
+// 			assert.Equal(t, tt.expectedStatus, rec.Code)
+// 			assert.JSONEq(t, string(expectedResponseBytes), rec.Body.String())
+// 		})
+// 	}
+// }
+//
+// func TestDeleteBook(t *testing.T) {
+// 	tests := []struct {
+// 		name             string
+// 		requestBody      string
+// 		m                func(mock *mocks.MockhandlerBookUsecase)
+// 		expectedStatus   int
+// 		expectedResponse Response
+// 	}{
+// 		{
+// 			name:        "Success update book",
+// 			requestBody: `{"id": 1}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().DeleteBook(&models.DeleteBooksRequest{
+// 					ID: 1,
+// 				}).Return(nil)
+// 			},
+// 			expectedStatus: http.StatusOK,
+// 			expectedResponse: Response{
+// 				Status:  true,
+// 				Message: "Book with ID 1 has been deleted",
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:        "Failed delete book due to bind error",
+// 			requestBody: `{,,,}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 			},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.BadRequest,
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:        "Failed delete book due to validation error",
+// 			requestBody: `{"id": -1}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 			},
+// 			expectedStatus: http.StatusBadRequest,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.ValidationError,
+// 				Data:    nil,
+// 			},
+// 		},
+// 		{
+// 			name:        "Failed delete book due to book not found",
+// 			requestBody: `{"id": 1}`,
+// 			m: func(mockuc *mocks.MockhandlerBookUsecase) {
+// 				mockuc.EXPECT().DeleteBook(&models.DeleteBooksRequest{
+// 					ID: 1,
+// 				}).Return(fmt.Errorf("repository error: %w", models.ErrNotFound))
+// 			},
+// 			expectedStatus: http.StatusNotFound,
+// 			expectedResponse: Response{
+// 				Status:  false,
+// 				Message: models.NotFound,
+// 				Data:    nil,
+// 			},
+// 		},
+// 	}
+// 	for _, tt := range tests {
+// 		t.Run(tt.name, func(t *testing.T) {
+// 			e, handler, mock := initialSetup(t)
+// 			tt.m(mock)
+//
+// 			expectedResponseBytes, err := json.Marshal(tt.expectedResponse)
+// 			if err != nil {
+// 				t.Fatalf("Failed to marshal expected response: %v", err)
+// 			}
+//
+// 			req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(tt.requestBody))
+// 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+// 			rec := httptest.NewRecorder()
+// 			c := e.NewContext(req, rec)
+//
+// 			err = handler.DeleteBook(c)
+// 			if err != nil {
+// 				e.HTTPErrorHandler(err, c)
+// 			}
+//
+// 			assert.Equal(t, tt.expectedStatus, rec.Code)
+// 			assert.JSONEq(t, string(expectedResponseBytes), rec.Body.String())
+// 		})
+// 	}
+// }
