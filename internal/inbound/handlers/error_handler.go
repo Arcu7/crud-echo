@@ -29,5 +29,6 @@ func CustomHTTPErrorHandler(err error, c echo.Context) {
 		Data:    nil,
 	}
 
+	c.Logger().Errorf("Response error: %#v", resp)
 	c.JSON(code, resp)
 }

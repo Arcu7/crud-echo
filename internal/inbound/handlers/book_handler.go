@@ -10,7 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-type handlerBookUsecase interface {
+type HandlerBookUsecase interface {
 	CreateBook(book *models.CreateBooksRequest) (*models.Books, error)
 	GetBookByID(id int) (*models.BooksSummary, error)
 	GetAllBooks(available bool) (*[]models.BooksSummary, error)
@@ -19,11 +19,11 @@ type handlerBookUsecase interface {
 }
 
 type BooksHandler struct {
-	buc handlerBookUsecase
+	buc HandlerBookUsecase
 	cv  *customvalidator.CustomValidator
 }
 
-func NewBooksHandler(buc handlerBookUsecase, validator *customvalidator.CustomValidator) *BooksHandler {
+func NewBooksHandler(buc HandlerBookUsecase, validator *customvalidator.CustomValidator) *BooksHandler {
 	return &BooksHandler{buc: buc, cv: validator}
 }
 
@@ -53,7 +53,7 @@ func (h BooksHandler) GetBookByID(c echo.Context) error {
 	id, err := strconv.Atoi(c.Param("id"))
 	if err != nil {
 		log.Printf("Error converting id to integer: %v", err)
-		return echo.NewHTTPError(http.StatusBadRequest, models.BadRequest)
+		return echo.NewHTTPError(http.StatusBadRequest, models.InvalidParam)
 	}
 
 	resp, err := h.buc.GetBookByID(id)
