@@ -1,0 +1,11 @@
+server:
+  host: "localhost"
+  port: 1323
+
+database:
+  host: "localhost"
+  port: 5432
+  name: "project_1"
+  sslMode: disable
+  timeZone: Asia/Jakarta
+  logMode: true
